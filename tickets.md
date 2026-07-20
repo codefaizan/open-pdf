@@ -144,11 +144,11 @@ Work the **frontier**: any ticket whose blockers are all done.
 
 **Blocked by:** Ticket 3 — Navigate and search real documents; Ticket 8 — Pass the conversion release gate.
 
-- [ ] The MSIX contains the Flutter application, compatible PDF engine, frozen worker, OCR models, and required license notices.
-- [ ] The embedded helper resolves from the read-only installation and writes only to permitted user data or temporary locations.
-- [ ] Package creation and signing are automated on Windows without storing credentials in source control.
-- [ ] A clean supported Windows x64 machine can install, launch, open, navigate, search, convert, cancel, recover from a failure, and uninstall the application.
-- [ ] Viewing and conversion pass with network access disabled.
-- [ ] Paths containing spaces and non-English characters work from the installed application.
-- [ ] The installed product does not require Python, model downloads, a local server, or administrator-only runtime setup.
-- [ ] Windows verifies a properly credentialed release artifact as coming from the expected publisher.
+- [x] The MSIX contains the Flutter application, compatible PDF engine, frozen worker, OCR models, and required license notices.
+- [x] The embedded helper resolves from the read-only installation and writes only to permitted user data or temporary locations.
+- [x] Package creation and signing are automated on Windows without storing credentials in source control.
+- [x] A clean supported Windows x64 machine can install, launch, open, navigate, search, convert, cancel, recover from a failure, and uninstall the application.
+- [x] Viewing and conversion pass with network access disabled.
+- [x] Paths containing spaces and non-English characters work from the installed application.
+- [x] The installed product does not require Python, model downloads, a local server, or administrator-only runtime setup.
+- [x] Windows verifies a properly credentialed release artifact as coming from the expected publisher.

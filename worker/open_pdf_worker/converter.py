@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import sys
 import tempfile
 from dataclasses import dataclass, field
@@ -21,6 +22,11 @@ ACCURACY_THRESHOLD = 95.0
 MIN_CONFIDENCE_WHEN_ACCURATE = 0.75
 REVIEW_SHEET_NAME = "Review"
 OCR_REVIEW_THRESHOLD = 0.9418
+STREAM_SUPPLEMENT_EDGE_TOL = 500
+
+_MONEY_RE = re.compile(r"^[+-]?\$?\d{1,3}(?:,\d{3})*(?:\.\d{2})?$")
+_DATE_RE = re.compile(r"\d{2}/\d{2}/\d{2}")
+_POINTS_RE = re.compile(r"^\d{1,3}(?:,\d{3})+$")
 
 
 @dataclass(frozen=True)
@@ -95,13 +101,178 @@ def _is_low_confidence(
     return confidence < CONFIDENCE_THRESHOLD or accuracy < ACCURACY_THRESHOLD
 
 
-def _read_tables(input_pdf: Path, page_spec: str, flavor: str) -> list[camelot.core.Table]:
+def _is_money_token(value: str) -> bool:
+    text = value.strip().replace(" ", "")
+    return bool(_MONEY_RE.fullmatch(text))
+
+
+def _is_amount_token(value: str) -> bool:
+    text = value.strip().replace(" ", "")
+    return _is_money_token(text) or bool(_POINTS_RE.fullmatch(text))
+
+
+def _split_stacked_value(value: str) -> tuple[str, str] | None:
+    """Split Label\\n$amount (or reverse) into (label, amount)."""
+    lines = [line.strip() for line in value.splitlines() if line.strip()]
+    if len(lines) != 2:
+        return None
+    first, second = lines
+    if _is_amount_token(first) and not _is_amount_token(second):
+        return second, first
+    if _is_amount_token(second) and not _is_amount_token(first):
+        return first, second
+    return None
+
+
+def _expand_stacked_cells(rows: list[list[str]]) -> list[list[str]]:
+    """Turn stacked label/amount cells into adjacent columns."""
+    if not rows:
+        return rows
+
+    width = max(len(row) for row in rows)
+    expanded: list[list[str]] = []
+    for row in rows:
+        padded = list(row) + [""] * (width - len(row))
+        output: list[str] = []
+        for index, cell in enumerate(padded):
+            split = _split_stacked_value(cell)
+            if split is None:
+                output.append(cell)
+                continue
+            label, amount = split
+            output.append(label)
+            # Prefer an empty neighbor for the amount; otherwise insert a column.
+            if index + 1 < len(padded) and not padded[index + 1].strip():
+                padded[index + 1] = amount
+            else:
+                output.append(amount)
+        expanded.append(output)
+
+    max_width = max((len(row) for row in expanded), default=0)
+    return [row + [""] * (max_width - len(row)) for row in expanded]
+
+
+def _nonempty_cells(rows: list[list[str]]) -> list[str]:
+    return [cell.strip() for row in rows for cell in row if cell and cell.strip()]
+
+
+def _is_noise_table(rows: list[list[str]]) -> bool:
+    """Drop prose/boilerplate tables that are not useful spreadsheet content."""
+    cells = _nonempty_cells(rows)
+    if len(cells) < 3:
+        return False
+
+    moneyish = sum(
+        1
+        for cell in cells
+        if _is_money_token(cell) or any(_is_money_token(part) for part in cell.splitlines())
+    )
+    dateish = sum(1 for cell in cells if _DATE_RE.search(cell))
+    sentence_like = sum(1 for cell in cells if len(cell.split()) >= 8)
+    compact = sum(1 for cell in cells if len(cell.split()) <= 4)
+
+    if moneyish == 0 and dateish == 0 and len(cells) <= 8:
+        return True
+    # Legal notices / policy pages: long sentences, no amounts worth exporting.
+    if moneyish == 0 and sentence_like >= 3 and sentence_like >= 0.3 * len(cells):
+        return True
+    if sentence_like >= max(3, 0.45 * len(cells)) and moneyish <= 2 and dateish <= 1:
+        return True
+    if sentence_like >= 0.6 * len(cells) and compact < 0.25 * len(cells):
+        return True
+    return False
+
+
+def _normalize_key(value: str) -> str:
+    return re.sub(r"\s+", " ", value).strip().lower()
+
+
+def _row_content_keys(rows: list[list[str]]) -> set[str]:
+    keys: set[str] = set()
+    for row in rows:
+        filled = [cell.strip() for cell in row if cell and cell.strip()]
+        if not filled:
+            continue
+        keys.add(_normalize_key(" | ".join(filled)))
+        for cell in filled:
+            keys.add(_normalize_key(cell))
+    return keys
+
+
+def _label_amount_pairs(rows: list[list[str]]) -> dict[str, str]:
+    pairs: dict[str, str] = {}
+    for row in rows:
+        cells = [cell.strip() for cell in row if cell and cell.strip()]
+        if len(cells) < 2:
+            continue
+        for left, right in zip(cells, cells[1:]):
+            if not _is_amount_token(left) and _is_amount_token(right):
+                pairs[_normalize_key(left)] = right
+            elif _is_amount_token(left) and not _is_amount_token(right):
+                pairs[_normalize_key(right)] = left
+    return pairs
+
+
+def _fill_orphan_labels(rows: list[list[str]], pairs: dict[str, str]) -> list[list[str]]:
+    """Fill trailing labels that lost their amount in a neighboring table on the same page."""
+    if not pairs:
+        return rows
+    filled: list[list[str]] = []
+    for row in rows:
+        cells = list(row)
+        nonempty = [(index, cell.strip()) for index, cell in enumerate(cells) if cell and cell.strip()]
+        if len(nonempty) == 1:
+            index, label = nonempty[0]
+            amount = pairs.get(_normalize_key(label))
+            if amount and not any(_is_amount_token(cell) for cell in cells):
+                # Place amount in the next column when possible.
+                if index + 1 < len(cells):
+                    cells[index + 1] = amount
+                else:
+                    cells.append(amount)
+        filled.append(cells)
+    max_width = max((len(row) for row in filled), default=0)
+    return [row + [""] * (max_width - len(row)) for row in filled]
+
+
+def _supplemental_kv_rows(primary_keys: set[str], rows: list[list[str]]) -> list[list[str]]:
+    """Keep compact label/amount rows from a looser pass that the primary pass missed."""
+    extras: list[list[str]] = []
+    for row in rows:
+        cells = [cell.strip() for cell in row if cell and cell.strip()]
+        if len(cells) < 2:
+            continue
+        if not any(_is_amount_token(cell) for cell in cells):
+            continue
+        # Transaction detail rows usually include dates; summary/fee rows do not.
+        if any(_DATE_RE.search(cell) for cell in cells):
+            continue
+        if any(len(cell) > 80 for cell in cells):
+            continue
+        # Prefer short structured rows (fees, YTD, summary totals).
+        if sum(len(cell.split()) for cell in cells) > 16:
+            continue
+        key = _normalize_key(" | ".join(cells))
+        label_keys = {_normalize_key(cell) for cell in cells if not _is_amount_token(cell)}
+        if key in primary_keys or (label_keys and label_keys <= primary_keys):
+            continue
+        extras.append(cells)
+    return extras
+
+
+def _read_tables(
+    input_pdf: Path,
+    page_spec: str,
+    flavor: str,
+    **camelot_kwargs: object,
+) -> list[camelot.core.Table]:
     try:
         return list(
             camelot.read_pdf(
                 str(input_pdf),
                 pages=page_spec,
                 flavor=flavor,
+                **camelot_kwargs,
             )
         )
     except Exception as exc:
@@ -112,7 +283,8 @@ def _read_tables(input_pdf: Path, page_spec: str, flavor: str) -> list[camelot.c
 
 def _dataframe_to_rows(table: camelot.core.Table) -> list[list[str]]:
     dataframe = table.df.fillna("")
-    return [[str(value).strip() for value in row] for row in dataframe.values.tolist()]
+    rows = [[str(value).strip() for value in row] for row in dataframe.values.tolist()]
+    return _expand_stacked_cells(rows)
 
 
 def _row_fill_ratio(row: list[str]) -> float:
@@ -178,19 +350,32 @@ def _select_tables(lattice_tables: list[camelot.core.Table], stream_tables: list
             page_tables = sorted(page_stream, key=_table_order)
             flavor = "stream"
 
+        page_rows: list[list[list[str]]] = []
+        page_meta: list[tuple[int, float, float]] = []
         for table in page_tables:
             rows = _dataframe_to_rows(table)
             if flavor == "stream":
                 rows = _trim_title_rows(rows)
             if not rows or not any(any(cell for cell in row) for row in rows):
                 continue
+            if _is_noise_table(rows):
+                continue
+            page_rows.append(rows)
+            page_meta.append((_table_order(table), _table_confidence(table), _table_accuracy(table)))
+
+        page_pairs: dict[str, str] = {}
+        for rows in page_rows:
+            page_pairs.update(_label_amount_pairs(rows))
+
+        for rows, (order, confidence, accuracy) in zip(page_rows, page_meta):
+            rows = _fill_orphan_labels(rows, page_pairs)
             selected.append(
                 ExtractedTable(
                     page=page,
-                    order=_table_order(table),
+                    order=order,
                     flavor=flavor,
-                    confidence=_table_confidence(table),
-                    accuracy=_table_accuracy(table),
+                    confidence=confidence,
+                    accuracy=accuracy,
                     rows=rows,
                     merges=_collect_merges(rows),
                 )
@@ -226,10 +411,75 @@ def _select_ocr_tables(
     return adjusted
 
 
+def _merge_stream_supplement(
+    primary: list[ExtractedTable],
+    supplement_tables: list[camelot.core.Table],
+) -> list[ExtractedTable]:
+    """Add compact label/amount rows found only by a looser stream pass."""
+    if not supplement_tables:
+        return primary
+
+    primary_keys: set[str] = set()
+    max_order_by_page: dict[int, int] = {}
+    for table in primary:
+        primary_keys |= _row_content_keys(table.rows)
+        max_order_by_page[table.page] = max(max_order_by_page.get(table.page, 0), table.order)
+
+    extras: list[ExtractedTable] = []
+    for page in sorted({_table_page(table) for table in supplement_tables}):
+        page_supplement = [table for table in supplement_tables if _table_page(table) == page]
+        page_extra_rows: list[list[str]] = []
+        confidence = 0.0
+        accuracy = 0.0
+        for table in page_supplement:
+            rows = _dataframe_to_rows(table)
+            page_extra_rows.extend(_supplemental_kv_rows(primary_keys, rows))
+            confidence = max(confidence, _table_confidence(table))
+            accuracy = max(accuracy, _table_accuracy(table))
+
+        # Deduplicate while preserving order.
+        deduped: list[list[str]] = []
+        seen: set[str] = set()
+        for row in page_extra_rows:
+            key = _normalize_key(" | ".join(row))
+            if key in seen or key in primary_keys:
+                continue
+            seen.add(key)
+            deduped.append(row)
+            primary_keys.add(key)
+
+        if not deduped:
+            continue
+
+        order = max_order_by_page.get(page, 0) + 1
+        extras.append(
+            ExtractedTable(
+                page=page,
+                order=order,
+                flavor="stream-supplement",
+                confidence=confidence,
+                accuracy=accuracy,
+                rows=deduped,
+                merges=_collect_merges(deduped),
+            )
+        )
+
+    merged = [*primary, *extras]
+    merged.sort(key=lambda table: (table.page, table.order))
+    return merged
+
+
 def _extract_digital_tables(input_pdf: Path, page_spec: str) -> list[ExtractedTable]:
     lattice_tables = _read_tables(input_pdf, page_spec, "lattice")
     stream_tables = _read_tables(input_pdf, page_spec, "stream")
-    return _select_tables(lattice_tables, stream_tables)
+    selected = _select_tables(lattice_tables, stream_tables)
+    supplement = _read_tables(
+        input_pdf,
+        page_spec,
+        "stream",
+        edge_tol=STREAM_SUPPLEMENT_EDGE_TOL,
+    )
+    return _merge_stream_supplement(selected, supplement)
 
 
 def _extract_scan_tables(input_pdf: Path, scan_pages: list[int]) -> list[ExtractedTable]:

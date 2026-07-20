@@ -1,0 +1,113 @@
+# Build Open-PDF-x64.msix on a free GitHub-hosted Windows runner.
+# Manual only so idle pushes do not burn the free minute allowance.
+#
+# Free tier notes (GitHub-hosted):
+#   - Public repos: standard runners are free (fair use).
+#   - Private repos: monthly free minutes; Windows minutes count 2x.
+#
+# Optional signing secrets (never commit the PFX):
+#   OPEN_PDF_WINDOWS_PFX_BASE64
+#   OPEN_PDF_WINDOWS_PFX_PASSWORD
+#   OPEN_PDF_WINDOWS_PUBLISHER   (must match the PFX subject)
+
+name: Windows MSIX
+
+on:
+  workflow_dispatch:
+    inputs:
+      sign:
+        description: Sign the MSIX with repo PFX secrets
+        type: boolean
+        default: false
+      smoke:
+        description: Run packaging smoke checks after build
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: windows-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Enable Flutter Windows desktop
+        run: flutter config --enable-windows-desktop
+
+      - name: Install Tesseract OCR
+        run: choco install tesseract --yes --no-progress
+
+      - name: Resolve Tesseract directory
+        shell: pwsh
+        run: |
+          $candidates = @(
+            "C:\Program Files\Tesseract-OCR",
+            "C:\Program Files (x86)\Tesseract-OCR"
+          )
+          $dir = $candidates | Where-Object { Test-Path (Join-Path $_ "tesseract.exe") } | Select-Object -First 1
+          if (-not $dir) {
+            $cmd = Get-Command tesseract.exe -ErrorAction Stop
+            $dir = Split-Path -Parent $cmd.Source
+          }
+          Write-Host "Using Tesseract at $dir"
+          "OPEN_PDF_TESSERACT_DIR=$dir" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Import signing certificate
+        if: ${{ inputs.sign }}
+        shell: pwsh
+        env:
+          OPEN_PDF_WINDOWS_PFX_BASE64: ${{ secrets.OPEN_PDF_WINDOWS_PFX_BASE64 }}
+          OPEN_PDF_WINDOWS_PFX_PASSWORD: ${{ secrets.OPEN_PDF_WINDOWS_PFX_PASSWORD }}
+          OPEN_PDF_WINDOWS_PUBLISHER: ${{ secrets.OPEN_PDF_WINDOWS_PUBLISHER }}
+        run: |
+          if (-not $env:OPEN_PDF_WINDOWS_PFX_BASE64) {
+            throw "OPEN_PDF_WINDOWS_PFX_BASE64 secret is required when sign=true"
+          }
+          if ($null -eq $env:OPEN_PDF_WINDOWS_PFX_PASSWORD) {
+            throw "OPEN_PDF_WINDOWS_PFX_PASSWORD secret must be set (empty string allowed)"
+          }
+          $path = Join-Path $env:RUNNER_TEMP "open-pdf-codesign.pfx"
+          [IO.File]::WriteAllBytes($path, [Convert]::FromBase64String($env:OPEN_PDF_WINDOWS_PFX_BASE64))
+          "OPEN_PDF_WINDOWS_PFX_PATH=$path" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "OPEN_PDF_WINDOWS_PFX_PASSWORD=$($env:OPEN_PDF_WINDOWS_PFX_PASSWORD)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          if ($env:OPEN_PDF_WINDOWS_PUBLISHER) {
+            "OPEN_PDF_WINDOWS_PUBLISHER=$($env:OPEN_PDF_WINDOWS_PUBLISHER)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          }
+
+      - name: Build MSIX
+        shell: pwsh
+        run: |
+          if ("${{ inputs.sign }}" -eq "true") {
+            .\scripts\package_windows.ps1
+          } else {
+            .\scripts\package_windows.ps1 -SkipSign
+          }
+
+      - name: Smoke package
+        if: ${{ inputs.smoke }}
+        shell: pwsh
+        run: .\scripts\smoke_windows_package.ps1 .\artifacts\windows\Open-PDF-x64.msix
+
+      - name: Upload MSIX
+        uses: actions/upload-artifact@v4
+        with:
+          name: Open-PDF-x64
+          path: artifacts/windows/Open-PDF-x64.msix
+          if-no-files-found: error
+          retention-days: 14

@@ -56,11 +56,13 @@ def find_tesseract_binary() -> str:
     meipass = _meipass()
     bundled_candidates: list[str] = []
     if meipass is not None:
+        exe_dir = Path(sys.executable).resolve().parent
         bundled_candidates.extend(
             [
                 str(meipass / "tesseract"),
                 str(meipass / "tesseract.exe"),
-                str(Path(sys.executable).resolve().parent / "tesseract"),
+                str(exe_dir / "tesseract"),
+                str(exe_dir / "tesseract.exe"),
             ]
         )
     candidates = [

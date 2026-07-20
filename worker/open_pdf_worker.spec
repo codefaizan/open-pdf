@@ -6,11 +6,25 @@ from PyInstaller.utils.hooks import collect_submodules, collect_all
 
 block_cipher = None
 
-site_packages = Path(SPECPATH) / ".venv" / "lib" / "python3.14" / "site-packages"
-mypyc_binaries = [
-    (str(path), ".")
-    for path in site_packages.glob("*__mypyc*.so")
-]
+
+def _venv_site_packages() -> Path:
+    venv = Path(SPECPATH) / ".venv"
+    win = venv / "Lib" / "site-packages"
+    if win.is_dir():
+        return win
+    lib = venv / "lib"
+    if lib.is_dir():
+        matches = sorted(lib.glob("python*/site-packages"))
+        if matches:
+            return matches[-1]
+    raise SystemExit(f"No venv site-packages under {venv}")
+
+
+site_packages = _venv_site_packages()
+mypyc_paths = list(site_packages.glob("*__mypyc*.so")) + list(
+    site_packages.glob("*__mypyc*.pyd")
+)
+mypyc_binaries = [(str(path), ".") for path in mypyc_paths]
 
 hiddenimports = (
     collect_submodules("camelot")
@@ -18,7 +32,7 @@ hiddenimports = (
     + collect_submodules("playa")
     + collect_submodules("pypdfium2")
     + collect_submodules("pytesseract")
-    + [path.stem.split(".")[0] for path in site_packages.glob("*__mypyc*.so")]
+    + [path.stem.split(".")[0] for path in mypyc_paths]
 )
 
 camelot_datas, camelot_binaries, camelot_hidden = collect_all("camelot")

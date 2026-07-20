@@ -25,10 +25,11 @@ OCR models and native OCR binary
   Bundled at worker/open_pdf_worker/tessdata/eng.traineddata and included
   in the frozen worker package. Runtime model downloads are disabled.
 - Tesseract OCR binary 5.5.x — Apache License 2.0
-  Bundled beside the frozen worker inside the macOS application package
-  (Contents/Resources/worker/open_pdf_worker/tesseract plus linked dylibs).
+  Bundled beside the frozen worker inside each platform package:
+  macOS — Contents/Resources/worker/open_pdf_worker/tesseract (+ linked dylibs);
+  Windows — data/worker/open_pdf_worker/tesseract.exe (+ required DLLs).
   Override with TESSERACT_CMD only for development. Runtime downloads are
-  disabled; Windows packaging (Ticket 10) ships its own binary likewise.
+  disabled.
 
 Desktop application (Flutter)
 -----------------------------

@@ -98,15 +98,15 @@ Work the **frontier**: any ticket whose blockers are all done.
 
 **Blocked by:** Ticket 4 — Convert the open PDF with one action.
 
-- [ ] Users can cancel an active conversion while the interface remains responsive.
-- [ ] Cancellation stops the worker and leaves no workbook that could be mistaken for a complete result.
-- [ ] Temporary conversion files and orphaned worker processes are cleaned up after completion, cancellation, timeout, or crash.
-- [ ] Worker crashes, malformed events, protocol mismatches, and timeouts produce actionable errors.
-- [ ] Invalid page ranges, unreadable PDFs, read-only destinations, and unsupported encryption are distinguished.
-- [ ] Existing workbooks are never overwritten without explicit confirmation.
-- [ ] A failed conversion does not require restarting the application before opening or converting another PDF.
-- [ ] Local diagnostics include application and converter versions but exclude document contents.
-- [ ] Filenames and protocol values cannot cause shell execution.
+- [x] Users can cancel an active conversion while the interface remains responsive.
+- [x] Cancellation stops the worker and leaves no workbook that could be mistaken for a complete result.
+- [x] Temporary conversion files and orphaned worker processes are cleaned up after completion, cancellation, timeout, or crash.
+- [x] Worker crashes, malformed events, protocol mismatches, and timeouts produce actionable errors.
+- [x] Invalid page ranges, unreadable PDFs, read-only destinations, and unsupported encryption are distinguished.
+- [x] Existing workbooks are never overwritten without explicit confirmation.
+- [x] A failed conversion does not require restarting the application before opening or converting another PDF.
+- [x] Local diagnostics include application and converter versions but exclude document contents.
+- [x] Filenames and protocol values cannot cause shell execution.
 
 ## Ticket 8: Pass the conversion release gate
 

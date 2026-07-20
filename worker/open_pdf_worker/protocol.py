@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+import pypdfium2 as pdfium
+from pypdfium2 import PdfiumError
 
 
 PAGE_RANGE_RE = re.compile(r"^(?:all|\d+(?:-\d+)?(?:,\d+(?:-\d+)?)*)$")
@@ -81,11 +85,13 @@ def parse_convert_request(payload: dict[str, Any]) -> ConvertRequest:
         raise ProtocolError("PDF_UNREADABLE", f"Input PDF not found: {input_pdf}")
     if pdf_path.suffix.lower() != ".pdf":
         raise ProtocolError("PDF_UNREADABLE", "Input file must have a .pdf extension.")
+    _ensure_pdf_readable(pdf_path)
     parent = xlsx_path.parent
     if not parent.exists():
         raise ProtocolError("INVALID_REQUEST", f"Output directory does not exist: {parent}")
     if not parent.is_dir():
         raise ProtocolError("INVALID_REQUEST", f"Output parent is not a directory: {parent}")
+    _ensure_destination_writable(parent)
 
     return ConvertRequest(
         request_id=request_id,
@@ -93,6 +99,30 @@ def parse_convert_request(payload: dict[str, Any]) -> ConvertRequest:
         output_xlsx=xlsx_path.resolve(),
         pages=pages.strip() if isinstance(pages, str) else None,
     )
+
+
+def _ensure_destination_writable(directory: Path) -> None:
+    if not os.access(directory, os.W_OK):
+        raise ProtocolError(
+            "DESTINATION_NOT_WRITABLE",
+            f"Output directory is not writable: {directory}",
+        )
+
+
+def _ensure_pdf_readable(pdf_path: Path) -> None:
+    try:
+        document = pdfium.PdfDocument(str(pdf_path))
+        document.close()
+    except PdfiumError as exc:
+        message = str(exc).lower()
+        if "password" in message:
+            raise ProtocolError(
+                "PDF_ENCRYPTED",
+                "PDF is encrypted and cannot be converted without a password.",
+            ) from exc
+        raise ProtocolError("PDF_UNREADABLE", f"Input PDF could not be opened: {exc}") from exc
+    except OSError as exc:
+        raise ProtocolError("PDF_UNREADABLE", f"Input PDF could not be opened: {exc}") from exc
 
 
 def error_event(request_id: str | None, code: str, message: str) -> dict[str, Any]:

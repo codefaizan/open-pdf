@@ -59,13 +59,16 @@ class ConversionCompleteDialog extends StatelessWidget {
 Future<void> showConversionErrorDialog(
   BuildContext context, {
   required String message,
+  String? diagnostics,
 }) {
   return showDialog<void>(
     context: context,
     builder: (context) => AlertDialog(
       key: const Key('conversion_error_dialog'),
       title: const Text('Conversion failed'),
-      content: SelectableText(message),
+      content: SelectableText(
+        diagnostics == null ? message : '$message\n\nDiagnostics: $diagnostics',
+      ),
       actions: [
         FilledButton(
           onPressed: () => Navigator.of(context).pop(),

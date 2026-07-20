@@ -5,11 +5,13 @@ class ConversionProgressPanel extends StatelessWidget {
   const ConversionProgressPanel({
     required this.progress,
     required this.progressEvents,
+    this.onCancel,
     super.key,
   });
 
   final ConversionProgress progress;
   final List<ConversionProgress> progressEvents;
+  final VoidCallback? onCancel;
 
   @override
   Widget build(BuildContext context) {
@@ -48,10 +50,23 @@ class ConversionProgressPanel extends StatelessWidget {
               ...progressEvents.map(
                 (event) => Text(
                   '${event.percent}% · ${event.message}',
-                  key: Key('conversion_progress_step_${event.stage}_${event.percent}'),
+                  key: Key(
+                    'conversion_progress_step_${event.stage}_${event.percent}',
+                  ),
                   style: theme.textTheme.bodySmall,
                 ),
               ),
+              if (onCancel != null) ...[
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    key: const Key('conversion_cancel'),
+                    onPressed: onCancel,
+                    child: const Text('Cancel'),
+                  ),
+                ),
+              ],
             ],
           ),
         ),

@@ -164,6 +164,14 @@ class WorkerSession:
             )
         except ConversionCancelledError:
             emit(error_event(request.request_id, "CANCELLED", "Conversion cancelled."))
+        except PermissionError as exc:
+            emit(
+                error_event(
+                    request.request_id,
+                    "DESTINATION_NOT_WRITABLE",
+                    f"Cannot write output workbook: {exc}",
+                )
+            )
         except RuntimeError as exc:
             emit(error_event(request.request_id, "CONVERSION_FAILED", str(exc)))
         except Exception as exc:

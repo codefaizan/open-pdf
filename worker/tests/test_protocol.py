@@ -99,7 +99,7 @@ def test_corrupted_pdf_returns_error_without_workbook(
         if event["type"] == "complete":
             raise AssertionError("Expected conversion to fail for corrupted PDF.")
 
-    assert event["code"] == "CONVERSION_FAILED"
+    assert event["code"] == "PDF_UNREADABLE"
     assert not output.exists()
 
 
@@ -204,3 +204,60 @@ def test_stderr_is_drained_during_conversion(
 
     stderr_lines = worker.close()
     assert isinstance(stderr_lines, list)
+
+
+def test_encrypted_pdf_returns_pdf_encrypted(
+    worker: WorkerClient,
+    tmp_path: Path,
+) -> None:
+    from reportlab.lib.pdfencrypt import StandardEncryption
+    from reportlab.pdfgen import canvas
+
+    encrypted = tmp_path / "secret.pdf"
+    enc = StandardEncryption(userPassword="user", ownerPassword="owner")
+    c = canvas.Canvas(str(encrypted), encrypt=enc)
+    c.drawString(100, 700, "secret")
+    c.save()
+
+    handshake(worker)
+    output = tmp_path / "secret.xlsx"
+    worker.send(
+        {
+            "type": "convert",
+            "request_id": "encrypted",
+            "input_pdf": str(encrypted),
+            "output_xlsx": str(output),
+        }
+    )
+    event = worker.read_event()
+    assert event["type"] == "error"
+    assert event["code"] == "PDF_ENCRYPTED"
+    assert not output.exists()
+
+
+def test_read_only_destination_returns_not_writable(
+    worker: WorkerClient,
+    tmp_path: Path,
+    sample_pdf: Path,
+) -> None:
+    readonly_dir = tmp_path / "readonly"
+    readonly_dir.mkdir()
+    readonly_dir.chmod(0o555)
+
+    handshake(worker)
+    output = readonly_dir / "out.xlsx"
+    try:
+        worker.send(
+            {
+                "type": "convert",
+                "request_id": "readonly",
+                "input_pdf": str(sample_pdf),
+                "output_xlsx": str(output),
+            }
+        )
+        event = worker.read_event()
+        assert event["type"] == "error"
+        assert event["code"] == "DESTINATION_NOT_WRITABLE"
+        assert not output.exists()
+    finally:
+        readonly_dir.chmod(0o755)

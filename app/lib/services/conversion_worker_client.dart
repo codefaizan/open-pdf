@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:open_pdf/services/conversion_diagnostics.dart';
 import 'package:open_pdf/services/conversion_protocol.dart';
 import 'package:open_pdf/services/worker_locator.dart';
 
@@ -52,7 +53,7 @@ class ConversionWorksheet {
   final String sourcePages;
 }
 
-class ConversionFailure implements Exception {
+class ConversionFailure implements Exception, ConversionFailureLike {
   ConversionFailure({
     required this.code,
     required this.message,
@@ -67,7 +68,9 @@ class ConversionFailure implements Exception {
     );
   }
 
+  @override
   final String code;
+  @override
   final String message;
   final String? requestId;
 
@@ -100,9 +103,13 @@ class ConversionWorkerClient {
   StreamSubscription<String>? _stdoutSubscription;
   StreamSubscription<String>? _stderrSubscription;
   final _pendingLines = <String>[];
+  final _diagnosticsLines = <String>[];
   Completer<void>? _waitForLine;
   var _closed = false;
   var _stdoutClosed = false;
+  var _terminated = false;
+
+  List<String> get diagnosticsLines => List.unmodifiable(_diagnosticsLines);
 
   Future<void> start() async {
     if (_process != null) {
@@ -132,7 +139,11 @@ class ConversionWorkerClient {
     _stderrSubscription = process.stderr
         .transform(utf8.decoder)
         .transform(const LineSplitter())
-        .listen((_) {});
+        .listen((line) {
+          if (line.trim().isNotEmpty) {
+            _diagnosticsLines.add(line);
+          }
+        });
   }
 
   void _onLine(String line) {
@@ -146,9 +157,9 @@ class ConversionWorkerClient {
 
   Future<Map<String, dynamic>> _readEvent() async {
     while (_pendingLines.isEmpty) {
-      if (_closed) {
+      if (_closed || _terminated || _stdoutClosed) {
         throw ConversionFailure(
-          code: 'CONVERSION_FAILED',
+          code: 'WORKER_CRASHED',
           message: 'Worker closed unexpectedly.',
         );
       }
@@ -156,16 +167,32 @@ class ConversionWorkerClient {
       _waitForLine = Completer<void>();
       await _waitForLine!.future;
 
-      if (_pendingLines.isEmpty && _stdoutClosed) {
+      if (_pendingLines.isEmpty && (_stdoutClosed || _terminated || _closed)) {
         throw ConversionFailure(
-          code: 'CONVERSION_FAILED',
+          code: 'WORKER_CRASHED',
           message: 'Worker closed before sending a response.',
         );
       }
     }
 
     final line = _pendingLines.removeAt(0);
-    return jsonDecode(line) as Map<String, dynamic>;
+    try {
+      final decoded = jsonDecode(line);
+      if (decoded is! Map<String, dynamic>) {
+        throw ConversionFailure(
+          code: 'MALFORMED_EVENT',
+          message: 'Worker sent a non-object event.',
+        );
+      }
+      return decoded;
+    } on ConversionFailure {
+      rethrow;
+    } on FormatException catch (error) {
+      throw ConversionFailure(
+        code: 'MALFORMED_EVENT',
+        message: 'Worker sent invalid JSON: $error',
+      );
+    }
   }
 
   Future<void> send(Map<String, dynamic> message) async {
@@ -177,6 +204,29 @@ class ConversionWorkerClient {
     await process.stdin.flush();
   }
 
+  Future<void> cancel(String requestId) {
+    return send({
+      'type': 'cancel',
+      'request_id': requestId,
+    });
+  }
+
+  Future<void> terminate() async {
+    _terminated = true;
+    final process = _process;
+    if (process == null) {
+      return;
+    }
+    process.kill();
+    _waitForLine?.complete();
+    _waitForLine = null;
+    try {
+      await process.exitCode.timeout(const Duration(seconds: 2));
+    } on TimeoutException {
+      process.kill(ProcessSignal.sigkill);
+    }
+  }
+
   Future<HandshakeResult> handshake() async {
     await send({
       'type': 'handshake',
@@ -185,7 +235,13 @@ class ConversionWorkerClient {
 
     final event = await _readEvent();
     if (event['type'] != 'handshake_ack') {
-      throw ConversionFailure.fromJson(event);
+      if (event['type'] == 'error') {
+        throw ConversionFailure.fromJson(event);
+      }
+      throw ConversionFailure(
+        code: 'PROTOCOL_MISMATCH',
+        message: 'Expected handshake_ack, got ${event['type']}.',
+      );
     }
 
     if (event['protocol_version'] != ConversionProtocol.protocolVersion) {
@@ -241,23 +297,43 @@ class ConversionWorkerClient {
           throw ConversionFailure.fromJson(event);
         default:
           throw ConversionFailure(
-            code: 'CONVERSION_FAILED',
+            code: 'MALFORMED_EVENT',
             message: 'Unexpected worker event: ${event['type']}',
           );
       }
     }
   }
 
-  Future<void> close() async {
+  Future<void> close({bool force = false}) async {
     _closed = true;
-    await _stdoutSubscription?.cancel();
-    await _stderrSubscription?.cancel();
     final process = _process;
     if (process != null) {
-      await process.stdin.close();
-      await process.exitCode;
+      if (force || _terminated) {
+        process.kill();
+      } else {
+        try {
+          await process.stdin.close();
+        } on StateError {
+          // stdin already closed after terminate
+        }
+      }
+      try {
+        await process.exitCode.timeout(
+          const Duration(seconds: 2),
+          onTimeout: () {
+            process.kill(ProcessSignal.sigkill);
+            return -1;
+          },
+        );
+      } on ProcessException {
+        // process already gone
+      }
     }
+    await _stdoutSubscription?.cancel();
+    await _stderrSubscription?.cancel();
     _process = null;
+    _waitForLine?.complete();
+    _waitForLine = null;
   }
 }
 

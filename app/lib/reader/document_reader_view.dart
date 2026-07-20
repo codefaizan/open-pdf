@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -13,6 +14,7 @@ import 'package:open_pdf/reader/reader_navigation_controls.dart';
 import 'package:open_pdf/reader/reader_search_bar.dart';
 import 'package:open_pdf/reader/reader_zoom_controls.dart';
 import 'package:open_pdf/reader/thumbnail_rail.dart';
+import 'package:open_pdf/services/conversion_diagnostics.dart';
 import 'package:open_pdf/services/conversion_service.dart';
 import 'package:open_pdf/services/conversion_worker_client.dart';
 import 'package:open_pdf/services/document_path.dart';
@@ -71,6 +73,8 @@ class _DocumentReaderViewState extends State<DocumentReaderView> {
     _textSearcher.removeListener(_onSearchUpdated);
     _textSearcher.dispose();
     _searchFieldFocusNode.dispose();
+    unawaited(_conversionService.cancelActiveConversion());
+    unawaited(_conversionService.cleanupLeftoverTemps());
     super.dispose();
   }
 
@@ -306,7 +310,14 @@ class _DocumentReaderViewState extends State<DocumentReaderView> {
         _conversionProgress = null;
         _conversionProgressEvents = const [];
       });
-      await showConversionErrorDialog(context, message: error.message);
+      if (error.code == 'CANCELLED') {
+        return;
+      }
+      await showConversionErrorDialog(
+        context,
+        message: conversionErrorMessage(error),
+        diagnostics: _conversionService.diagnostics().format(),
+      );
     } catch (error) {
       if (replaceExisting && File(outputPath).existsSync()) {
         await File(outputPath).delete();
@@ -322,6 +333,7 @@ class _DocumentReaderViewState extends State<DocumentReaderView> {
       await showConversionErrorDialog(
         context,
         message: 'Conversion failed: $error',
+        diagnostics: _conversionService.diagnostics().format(),
       );
     }
   }
@@ -334,6 +346,9 @@ class _DocumentReaderViewState extends State<DocumentReaderView> {
     return ConversionProgressPanel(
       progress: _conversionProgress!,
       progressEvents: _conversionProgressEvents,
+      onCancel: () {
+        unawaited(_conversionService.cancelActiveConversion());
+      },
     );
   }
 

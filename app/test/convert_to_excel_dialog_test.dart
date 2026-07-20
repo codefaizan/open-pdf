@@ -39,4 +39,44 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('convert_to_excel_dialog')), findsNothing);
   });
+
+  testWidgets('overwrite confirmation requires explicit replace', (tester) async {
+    bool? result;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) {
+              return Center(
+                child: FilledButton(
+                  onPressed: () async {
+                    result = await confirmWorkbookOverwrite(
+                      context,
+                      destinationPath: '/tmp/report.xlsx',
+                    );
+                  },
+                  child: const Text('Check'),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Check'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('convert_overwrite_dialog')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('convert_overwrite_cancel')));
+    await tester.pumpAndSettle();
+    expect(result, isFalse);
+
+    await tester.tap(find.text('Check'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('convert_overwrite_confirm')));
+    await tester.pumpAndSettle();
+    expect(result, isTrue);
+  });
 }

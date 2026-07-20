@@ -42,62 +42,70 @@ void main() {
     tempDir.deleteSync(recursive: true);
   });
 
-  test('handshake succeeds against distributable worker build', () async {
-    final client = ConversionWorkerClient(locator: locator);
-    await client.start();
-    try {
-      final result = await client.handshake();
-      expect(result.protocolVersion, '1.0');
-      expect(result.workerVersion, isNotEmpty);
-    } finally {
-      await client.close();
-    }
-  });
-
-  test('converts representative PDF to editable workbook', () async {
-    final output = File('${tempDir.path}/ruled_table.xlsx');
-    if (output.existsSync()) {
-      output.deleteSync();
-    }
-
-    final client = ConversionWorkerClient(locator: locator);
-    await client.start();
-    await client.handshake();
-
-    ConversionComplete? complete;
-    final progressEvents = <ConversionProgress>[];
-
-    await for (final event in client.convert(
-      requestId: 'e2e-ruled-table',
-      inputPdf: samplePdf.absolute.path,
-      outputXlsx: output.absolute.path,
-      pages: '1',
-    )) {
-      if (event is ConversionProgress) {
-        progressEvents.add(event);
-      } else if (event is ConversionComplete) {
-        complete = event;
+  test(
+    'handshake succeeds against distributable worker build',
+    () async {
+      final client = ConversionWorkerClient(locator: locator);
+      await client.start();
+      try {
+        final result = await client.handshake();
+        expect(result.protocolVersion, '1.0');
+        expect(result.workerVersion, isNotEmpty);
+      } finally {
+        await client.close();
       }
-    }
-    await client.close();
+    },
+    timeout: const Timeout(Duration(minutes: 2)),
+  );
 
-    expect(complete, isNotNull);
-    expect(output.existsSync(), isTrue);
-    expect(complete!.worksheets.length, greaterThanOrEqualTo(1));
-    expect(progressEvents, isNotEmpty);
-    expect(
-      progressEvents.first.percent,
-      lessThan(progressEvents.last.percent),
-    );
+  test(
+    'converts representative PDF to editable workbook',
+    () async {
+      final output = File('${tempDir.path}/ruled_table.xlsx');
+      if (output.existsSync()) {
+        output.deleteSync();
+      }
 
-    final requiredValues = (expectedSpec['required_values'] as List<dynamic>)
-        .cast<String>()
-        .toSet();
-    final workbookText = _readWorkbookText(output);
-    for (final value in requiredValues) {
-      expect(workbookText, contains(value), reason: 'Missing value $value');
-    }
-  });
+      final client = ConversionWorkerClient(locator: locator);
+      await client.start();
+      await client.handshake();
+
+      ConversionComplete? complete;
+      final progressEvents = <ConversionProgress>[];
+
+      await for (final event in client.convert(
+        requestId: 'e2e-ruled-table',
+        inputPdf: samplePdf.absolute.path,
+        outputXlsx: output.absolute.path,
+        pages: '1',
+      )) {
+        if (event is ConversionProgress) {
+          progressEvents.add(event);
+        } else if (event is ConversionComplete) {
+          complete = event;
+        }
+      }
+      await client.close();
+
+      expect(complete, isNotNull);
+      expect(output.existsSync(), isTrue);
+      expect(complete!.worksheets.length, greaterThanOrEqualTo(1));
+      expect(progressEvents, isNotEmpty);
+      expect(
+        progressEvents.first.percent,
+        lessThan(progressEvents.last.percent),
+      );
+
+      final requiredValues = (expectedSpec['required_values'] as List<dynamic>)
+          .cast<String>()
+          .toSet();
+      final workbookText = _readWorkbookText(output);
+      for (final value in requiredValues) {
+        expect(workbookText, contains(value), reason: 'Missing value $value');
+      }
+    },
+    timeout: const Timeout(Duration(minutes: 2)),
+  );
 }
 
 String _readWorkbookText(File workbook) {

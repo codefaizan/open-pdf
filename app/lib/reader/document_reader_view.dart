@@ -1,4 +1,9 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:open_pdf/reader/convert_to_excel_dialog.dart';
+import 'package:open_pdf/reader/conversion_complete_dialog.dart';
+import 'package:open_pdf/reader/conversion_progress_panel.dart';
 import 'package:open_pdf/reader/document_error_view.dart';
 import 'package:open_pdf/reader/document_outline_panel.dart';
 import 'package:open_pdf/reader/open_document.dart';
@@ -8,6 +13,8 @@ import 'package:open_pdf/reader/reader_navigation_controls.dart';
 import 'package:open_pdf/reader/reader_search_bar.dart';
 import 'package:open_pdf/reader/reader_zoom_controls.dart';
 import 'package:open_pdf/reader/thumbnail_rail.dart';
+import 'package:open_pdf/services/conversion_service.dart';
+import 'package:open_pdf/services/conversion_worker_client.dart';
 import 'package:open_pdf/services/document_path.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -18,6 +25,8 @@ class DocumentReaderView extends StatefulWidget {
     required this.onClose,
     required this.onOpenPdf,
     this.onSearchHandlerReady,
+    this.conversionService,
+    this.workbookActions = const WorkbookActions(),
     super.key,
   });
 
@@ -25,6 +34,8 @@ class DocumentReaderView extends StatefulWidget {
   final VoidCallback onClose;
   final VoidCallback onOpenPdf;
   final ValueChanged<VoidCallback>? onSearchHandlerReady;
+  final ConversionService? conversionService;
+  final WorkbookActions workbookActions;
 
   @override
   State<DocumentReaderView> createState() => _DocumentReaderViewState();
@@ -40,7 +51,13 @@ class _DocumentReaderViewState extends State<DocumentReaderView> {
   var _searchVisible = false;
   var _searchQuery = '';
   var _outlineVisible = false;
+  var _converting = false;
+  ConversionProgress? _conversionProgress;
+  List<ConversionProgress> _conversionProgressEvents = const [];
   List<PdfOutlineNode>? _outline;
+
+  ConversionService get _conversionService =>
+      widget.conversionService ?? ConversionService();
 
   @override
   void initState() {
@@ -190,6 +207,136 @@ class _DocumentReaderViewState extends State<DocumentReaderView> {
     }
   }
 
+  Future<void> _startConvertToExcel() async {
+    if (_converting) {
+      return;
+    }
+
+    final options = await showConvertToExcelDialog(
+      context,
+      pageCount: _pageCount,
+    );
+    if (!mounted || options == null) {
+      return;
+    }
+
+    var destination = await _conversionService.pickDestination(
+      widget.document.path,
+    );
+    if (!mounted || destination == null) {
+      return;
+    }
+
+    var outputPath = destination;
+    var replaceExisting = false;
+    if (_conversionService.destinationExists(destination)) {
+      final confirmed = await confirmWorkbookOverwrite(
+        context,
+        destinationPath: destination,
+      );
+      if (!mounted || confirmed != true) {
+        return;
+      }
+      replaceExisting = true;
+      outputPath = _conversionService.temporaryReplacementPath(destination);
+    }
+
+    setState(() {
+      _converting = true;
+      _conversionProgress = null;
+      _conversionProgressEvents = const [];
+    });
+
+    try {
+      await for (final event in _conversionService.runConversion(
+        ConversionRequest(
+          inputPdf: widget.document.path,
+          outputXlsx: outputPath,
+          pages: options.pages,
+        ),
+      )) {
+        if (!mounted) {
+          return;
+        }
+
+        if (event is ConversionProgress) {
+          setState(() {
+            _conversionProgress = event;
+            _conversionProgressEvents = [..._conversionProgressEvents, event];
+          });
+        } else if (event is ConversionComplete) {
+          if (!mounted) {
+            return;
+          }
+
+          final savedPath = replaceExisting
+              ? await _conversionService.finalizeReplacement(
+                  temporaryPath: event.outputPath,
+                  destinationPath: destination,
+                )
+              : event.outputPath;
+
+          if (!mounted) {
+            return;
+          }
+
+          setState(() {
+            _converting = false;
+            _conversionProgress = null;
+            _conversionProgressEvents = const [];
+          });
+
+          await showConversionCompleteDialog(
+            context,
+            outputPath: savedPath,
+            onOpen: () => widget.workbookActions.openWorkbook(savedPath),
+            onReveal: () => widget.workbookActions.revealWorkbook(savedPath),
+          );
+        }
+      }
+    } on ConversionFailure catch (error) {
+      if (replaceExisting && File(outputPath).existsSync()) {
+        await File(outputPath).delete();
+      }
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _converting = false;
+        _conversionProgress = null;
+        _conversionProgressEvents = const [];
+      });
+      await showConversionErrorDialog(context, message: error.message);
+    } catch (error) {
+      if (replaceExisting && File(outputPath).existsSync()) {
+        await File(outputPath).delete();
+      }
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _converting = false;
+        _conversionProgress = null;
+        _conversionProgressEvents = const [];
+      });
+      await showConversionErrorDialog(
+        context,
+        message: 'Conversion failed: $error',
+      );
+    }
+  }
+
+  Widget? _buildConversionOverlay() {
+    if (!_converting || _conversionProgressEvents.isEmpty) {
+      return null;
+    }
+
+    return ConversionProgressPanel(
+      progress: _conversionProgress!,
+      progressEvents: _conversionProgressEvents,
+    );
+  }
+
   Widget _buildSidebar(PdfDocument pdfDocument) {
     if (_outlineVisible && _outline != null && _outline!.isNotEmpty) {
       return DocumentOutlinePanel(
@@ -216,6 +363,9 @@ class _DocumentReaderViewState extends State<DocumentReaderView> {
       documentName: documentDisplayName(widget.document.path),
       onClose: widget.onClose,
       onOpenPdf: widget.onOpenPdf,
+      onConvertToExcel: _startConvertToExcel,
+      convertEnabled: !_converting,
+      conversionOverlay: _buildConversionOverlay(),
       controlBar: ReaderControlBar(
         navigation: ReaderNavigationControls(
           currentPage: _currentPage,

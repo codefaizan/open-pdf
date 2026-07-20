@@ -52,14 +52,14 @@ Work the **frontier**: any ticket whose blockers are all done.
 
 **Blocked by:** Ticket 1 — Prove one PDF-to-Excel conversion; Ticket 2 — Open and read a PDF.
 
-- [ ] The reader presents one prominent Convert to Excel action only when a document is open.
-- [ ] Conversion defaults to all pages and allows an optional valid page range.
-- [ ] A native save dialog selects the destination and prevents accidental overwrite.
-- [ ] The application launches the worker directly, completes the version handshake, and never constructs a shell command.
-- [ ] The interface stays responsive and displays ordered conversion progress.
-- [ ] Successful completion identifies the saved workbook and offers a direct way to reveal or open it.
-- [ ] The produced workbook contains editable cells matching the representative source PDF.
-- [ ] The complete app-to-worker path is exercised by an end-to-end test using the distributable worker build.
+- [x] The reader presents one prominent Convert to Excel action only when a document is open.
+- [x] Conversion defaults to all pages and allows an optional valid page range.
+- [x] A native save dialog selects the destination and prevents accidental overwrite.
+- [x] The application launches the worker directly, completes the version handshake, and never constructs a shell command.
+- [x] The interface stays responsive and displays ordered conversion progress.
+- [x] Successful completion identifies the saved workbook and offers a direct way to reveal or open it.
+- [x] The produced workbook contains editable cells matching the representative source PDF.
+- [x] The complete app-to-worker path is exercised by an end-to-end test using the distributable worker build.
 
 ## Ticket 5: Preserve complex digital tables safely
 

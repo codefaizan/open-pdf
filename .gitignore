@@ -2,6 +2,8 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+worker/build/
+worker/dist/
 artifacts/
 *.xlsx
 !corpus/*.expected.json

@@ -5,12 +5,16 @@ class ReaderToolbar extends StatelessWidget {
     required this.documentName,
     required this.onOpenPdf,
     required this.onClose,
+    required this.onConvertToExcel,
+    this.convertEnabled = true,
     super.key,
   });
 
   final String documentName;
   final VoidCallback onOpenPdf;
   final VoidCallback onClose;
+  final VoidCallback onConvertToExcel;
+  final bool convertEnabled;
 
   @override
   Widget build(BuildContext context) {
@@ -41,6 +45,13 @@ class ReaderToolbar extends StatelessWidget {
                 onPressed: onClose,
                 icon: const Icon(Icons.close, size: 18),
                 label: const Text('Close'),
+              ),
+              const SizedBox(width: 8),
+              FilledButton.icon(
+                key: const Key('reader_convert_to_excel'),
+                onPressed: convertEnabled ? onConvertToExcel : null,
+                icon: const Icon(Icons.table_chart_outlined, size: 18),
+                label: const Text('Convert to Excel'),
               ),
               const SizedBox(width: 16),
               Expanded(

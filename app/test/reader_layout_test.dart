@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:open_pdf/reader/conversion_progress_panel.dart';
+import 'package:open_pdf/services/conversion_worker_client.dart';
 import 'package:open_pdf/reader/document_error_view.dart';
 import 'package:open_pdf/reader/document_outline_panel.dart';
 import 'package:open_pdf/reader/empty_reader_view.dart';
@@ -34,6 +36,7 @@ void main() {
             documentName: 'sample.pdf',
             onClose: () {},
             onOpenPdf: () {},
+            onConvertToExcel: () {},
             body: const Placeholder(key: Key('reader_document_canvas')),
             sidebar: const SizedBox(key: Key('reader_thumbnail_rail')),
           ),
@@ -43,7 +46,52 @@ void main() {
       expect(find.byKey(const Key('reader_toolbar')), findsOneWidget);
       expect(find.byKey(const Key('reader_thumbnail_rail')), findsOneWidget);
       expect(find.byKey(const Key('reader_document_canvas')), findsOneWidget);
+      expect(find.byKey(const Key('reader_convert_to_excel')), findsOneWidget);
       expect(find.text('sample.pdf'), findsOneWidget);
+    });
+
+    testWidgets('convert action is disabled while conversion runs', (tester) async {
+      var convertTapped = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ReaderLayout(
+            documentName: 'sample.pdf',
+            onClose: () {},
+            onOpenPdf: () {},
+            onConvertToExcel: () => convertTapped = true,
+            convertEnabled: false,
+            conversionOverlay: ConversionProgressPanel(
+              progress: const ConversionProgress(
+                stage: 'extracting',
+                percent: 40,
+                message: 'Extracting tables',
+              ),
+              progressEvents: const [
+                ConversionProgress(
+                  stage: 'starting',
+                  percent: 5,
+                  message: 'Starting conversion',
+                ),
+                ConversionProgress(
+                  stage: 'extracting',
+                  percent: 40,
+                  message: 'Extracting tables',
+                ),
+              ],
+            ),
+            body: const SizedBox(key: Key('reader_document_canvas')),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byKey(const Key('reader_convert_to_excel')));
+      await tester.pump();
+
+      expect(convertTapped, isFalse);
+      expect(find.byKey(const Key('conversion_progress_panel')), findsOneWidget);
+      expect(find.text('5% · Starting conversion'), findsOneWidget);
+      expect(find.text('40% · Extracting tables'), findsOneWidget);
     });
 
     testWidgets('reading state shows navigation and zoom controls', (tester) async {
@@ -54,6 +102,7 @@ void main() {
               documentName: 'sample.pdf',
               onClose: () {},
               onOpenPdf: () {},
+              onConvertToExcel: () {},
               controlBar: ReaderControlBar(
                 navigation: ReaderNavigationControls(
                   currentPage: 2,
@@ -94,6 +143,7 @@ void main() {
             documentName: 'sample.pdf',
             onClose: () {},
             onOpenPdf: () {},
+            onConvertToExcel: () {},
             searchBar: ReaderSearchBar(
               query: 'invoice',
               matchLabel: '1 of 3',
@@ -272,6 +322,7 @@ void main() {
             documentName: 'sample.pdf',
             onClose: () => closed = true,
             onOpenPdf: () {},
+            onConvertToExcel: () {},
             body: const SizedBox(),
             sidebar: const SizedBox(key: Key('reader_thumbnail_rail')),
           ),

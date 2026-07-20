@@ -10,7 +10,7 @@ from open_pdf_worker.harness import (
     SAMPLE_PDF,
     WorkerClient,
     compare_expected_workbook,
-    ensure_sample_pdf,
+    ensure_corpus,
     handshake,
     read_workbook_cell_formats,
     read_workbook_cells,
@@ -19,7 +19,8 @@ from open_pdf_worker.harness import (
 
 @pytest.fixture(scope="session")
 def sample_pdf() -> Path:
-    return ensure_sample_pdf()
+    ensure_corpus()
+    return SAMPLE_PDF
 
 
 @pytest.fixture(scope="session")

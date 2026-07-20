@@ -1,6 +1,9 @@
 {
   "document": "ruled_table.pdf",
+  "document_class": "ruled",
+  "pages": "1",
   "minimum_worksheets": 1,
+  "expect_review_sheet": false,
   "required_values": [
     "00123",
     "00456",

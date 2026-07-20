@@ -12,6 +12,7 @@ from pathlib import Path
 
 from openpyxl import load_workbook
 
+from open_pdf_worker.converter import REVIEW_SHEET_NAME
 from open_pdf_worker.version import PROTOCOL_VERSION
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -19,17 +20,39 @@ WORKER_ROOT = Path(__file__).resolve().parents[1]
 CORPUS_DIR = REPO_ROOT / "corpus"
 SAMPLE_PDF = CORPUS_DIR / "ruled_table.pdf"
 EXPECTED_PATH = CORPUS_DIR / "ruled_table.expected.json"
+MANIFEST_PATH = CORPUS_DIR / "manifest.json"
+CORPUS_GENERATOR = CORPUS_DIR / "generate_digital_corpus.py"
 
 
 def ensure_sample_pdf() -> Path:
-    if SAMPLE_PDF.exists():
-        return SAMPLE_PDF
-    subprocess.run(
-        [sys.executable, str(CORPUS_DIR / "generate_ruled_table_pdf.py")],
-        check=True,
-        cwd=REPO_ROOT,
-    )
+    ensure_corpus()
     return SAMPLE_PDF
+
+
+def ensure_corpus() -> None:
+    manifest = load_digital_corpus_manifest()
+    missing_pdfs = [
+        entry
+        for entry in manifest
+        if not (CORPUS_DIR / entry["pdf"]).exists()
+    ]
+    if missing_pdfs or not CORPUS_GENERATOR.exists():
+        if not CORPUS_GENERATOR.exists():
+            raise FileNotFoundError(f"Missing corpus generator: {CORPUS_GENERATOR}")
+        subprocess.run(
+            [sys.executable, str(CORPUS_GENERATOR)],
+            check=True,
+            cwd=REPO_ROOT,
+        )
+
+
+def load_digital_corpus_manifest() -> list[dict]:
+    manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+    return manifest["digital_classes"]
+
+
+def load_expected_spec(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def peak_memory_bytes() -> int:
@@ -43,6 +66,8 @@ def read_workbook_cells(workbook_path: Path) -> list[list[str]]:
     workbook = load_workbook(workbook_path, data_only=False)
     cells: list[list[str]] = []
     for sheet in workbook.worksheets:
+        if sheet.title == REVIEW_SHEET_NAME:
+            continue
         for row in sheet.iter_rows(values_only=True):
             cells.append(["" if value is None else str(value) for value in row])
     return cells
@@ -52,11 +77,57 @@ def read_workbook_cell_formats(workbook_path: Path) -> list[str]:
     workbook = load_workbook(workbook_path, data_only=False)
     formats: list[str] = []
     for sheet in workbook.worksheets:
+        if sheet.title == REVIEW_SHEET_NAME:
+            continue
         for row in sheet.iter_rows(min_row=1):
             for cell in row:
                 if cell.value is not None and str(cell.value):
                     formats.append(cell.number_format)
     return formats
+
+
+def workbook_sheet_names(workbook_path: Path) -> list[str]:
+    workbook = load_workbook(workbook_path, data_only=False)
+    return workbook.sheetnames
+
+
+def workbook_has_review_sheet(workbook_path: Path) -> bool:
+    return REVIEW_SHEET_NAME in workbook_sheet_names(workbook_path)
+
+
+def workbook_merged_ranges(workbook_path: Path) -> dict[str, list[str]]:
+    workbook = load_workbook(workbook_path, data_only=False)
+    merged: dict[str, list[str]] = {}
+    for sheet in workbook.worksheets:
+        if sheet.title == REVIEW_SHEET_NAME:
+            continue
+        merged[sheet.title] = [str(item) for item in sheet.merged_cells.ranges]
+    return merged
+
+
+def workbook_source_pages(workbook_path: Path) -> list[int]:
+    workbook = load_workbook(workbook_path, data_only=False)
+    pages: list[int] = []
+    for sheet in workbook.worksheets:
+        if sheet.title == REVIEW_SHEET_NAME:
+            continue
+        for row in sheet.iter_rows(values_only=True):
+            if row and row[0] == "Source page(s)" and row[1] is not None:
+                pages.append(int(str(row[1])))
+    return pages
+
+
+def workbook_fingerprint(workbook_path: Path) -> list[tuple[str, list[tuple[int, int, str]]]]:
+    workbook = load_workbook(workbook_path, data_only=False)
+    fingerprint: list[tuple[str, list[tuple[int, int, str]]]] = []
+    for sheet in workbook.worksheets:
+        cells: list[tuple[int, int, str]] = []
+        for row in sheet.iter_rows(min_row=1):
+            for cell in row:
+                if cell.value is not None and str(cell.value):
+                    cells.append((cell.row, cell.column, str(cell.value)))
+        fingerprint.append((sheet.title, cells))
+    return fingerprint
 
 
 def flatten_values(cells: list[list[str]]) -> set[str]:
@@ -67,18 +138,20 @@ def compare_expected_workbook(workbook_path: Path, expected: dict) -> dict:
     cells = read_workbook_cells(workbook_path)
     flat = flatten_values(cells)
     required = set(expected["required_values"])
-    headers = set(expected["header_values"])
-    width = len(expected["rows"][0])
+    headers = set(expected.get("header_values", []))
+    width = len(expected["rows"][0]) if expected.get("rows") else 0
 
     found_required = required & flat
     found_headers = headers & flat
 
-    expected_rows = {tuple(row) for row in expected["rows"]}
-    actual_rows = {
-        tuple(row[:width])
-        for row in cells
-        if len(row) >= width and any(row[:width])
-    }
+    expected_rows = {tuple(row) for row in expected.get("rows", [])}
+    actual_rows: set[tuple[str, ...]] = set()
+    if width:
+        actual_rows = {
+            tuple(row[:width])
+            for row in cells
+            if len(row) >= width and any(row[:width])
+        }
     matched_rows = len(expected_rows & actual_rows)
 
     recall = len(found_required) / len(required) if required else 1.0
@@ -86,6 +159,28 @@ def compare_expected_workbook(workbook_path: Path, expected: dict) -> dict:
 
     source_metadata_found = any(
         row and row[0] == "Source page(s)" for row in cells
+    )
+    review_sheet_found = workbook_has_review_sheet(workbook_path)
+    expect_review_sheet = expected.get("expect_review_sheet", False)
+    review_sheet_ok = review_sheet_found == expect_review_sheet
+
+    merged_ranges = workbook_merged_ranges(workbook_path)
+    merged_ok = True
+    for spec in expected.get("merged_ranges", []):
+        found = any(spec["range"] in ranges for ranges in merged_ranges.values())
+        if not found:
+            merged_ok = False
+            break
+        if spec.get("value"):
+            value_found = spec["value"] in flat
+            merged_ok = merged_ok and value_found
+
+    source_pages = workbook_source_pages(workbook_path)
+    expected_source_pages = expected.get("source_pages")
+    source_pages_ok = (
+        True
+        if expected_source_pages is None
+        else sorted(source_pages) == sorted(expected_source_pages)
     )
 
     return {
@@ -96,6 +191,10 @@ def compare_expected_workbook(workbook_path: Path, expected: dict) -> dict:
         "headers_found": len(found_headers),
         "headers_expected": len(headers),
         "source_metadata_found": source_metadata_found,
+        "review_sheet_found": review_sheet_found,
+        "review_sheet_ok": review_sheet_ok,
+        "merged_ranges_ok": merged_ok,
+        "source_pages_ok": source_pages_ok,
         "values_found": sorted(found_required),
         "values_missing": sorted(required - found_required),
     }
@@ -188,3 +287,36 @@ def run_conversion(
     client.close()
     elapsed = time.perf_counter() - started
     return events, elapsed, peak_memory_bytes(), client.process.returncode or 0
+
+
+def benchmark_digital_corpus(tmp_dir: Path) -> dict:
+    ensure_corpus()
+    manifest = load_digital_corpus_manifest()
+    by_class: dict[str, dict] = {}
+
+    for entry in manifest:
+        pdf_path = CORPUS_DIR / entry["pdf"]
+        expected_path = CORPUS_DIR / entry["expected"]
+        expected = load_expected_spec(expected_path)
+        output = tmp_dir / f"{entry['id']}.xlsx"
+        events, runtime_seconds, peak_memory, exit_code = run_conversion(
+            pdf_path,
+            output,
+            pages=entry.get("pages", "1"),
+            request_id=f"benchmark-{entry['id']}",
+        )
+        metrics = compare_expected_workbook(output, expected)
+        metrics.update(
+            {
+                "document_class": entry["id"],
+                "document": str(pdf_path),
+                "runtime_seconds": round(runtime_seconds, 3),
+                "peak_memory_bytes": peak_memory,
+                "exit_code": exit_code,
+                "progress_events": sum(1 for event in events if event["type"] == "progress"),
+                "completed": events[-1]["type"] == "complete" if events else False,
+            }
+        )
+        by_class[entry["id"]] = metrics
+
+    return {"by_class": by_class}

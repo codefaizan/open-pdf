@@ -67,15 +67,15 @@ Work the **frontier**: any ticket whose blockers are all done.
 
 **Blocked by:** Ticket 4 — Convert the open PDF with one action.
 
-- [ ] The benchmark corpus contains redistributable ruled, borderless, merged-cell, multi-table, multi-page, and rotated digital examples with verified expected workbooks.
-- [ ] Clean digital pages use embedded text without unnecessary OCR.
-- [ ] Multiple detected tables are separated into understandable, safely named worksheets.
-- [ ] Confident merged-cell and row/column structure is retained in editable Excel cells.
-- [ ] Long identifiers, leading zeroes, dates, and numeric-looking text are not destructively converted.
-- [ ] Every extracted table records its source page or page range.
-- [ ] Low-confidence results add an unobtrusive review worksheet; high-confidence results do not.
-- [ ] Repeated conversion with the same application version produces deterministic workbook content.
-- [ ] Accuracy results are reported separately for each digital document class.
+- [x] The benchmark corpus contains redistributable ruled, borderless, merged-cell, multi-table, multi-page, and rotated digital examples with verified expected workbooks.
+- [x] Clean digital pages use embedded text without unnecessary OCR.
+- [x] Multiple detected tables are separated into understandable, safely named worksheets.
+- [x] Confident merged-cell and row/column structure is retained in editable Excel cells.
+- [x] Long identifiers, leading zeroes, dates, and numeric-looking text are not destructively converted.
+- [x] Every extracted table records its source page or page range.
+- [x] Low-confidence results add an unobtrusive review worksheet; high-confidence results do not.
+- [x] Repeated conversion with the same application version produces deterministic workbook content.
+- [x] Accuracy results are reported separately for each digital document class.
 
 ## Ticket 6: Convert scanned PDFs offline
 

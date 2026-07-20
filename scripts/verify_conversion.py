@@ -13,7 +13,7 @@ from open_pdf_worker.harness import (
     REPO_ROOT,
     SAMPLE_PDF,
     compare_expected_workbook,
-    ensure_sample_pdf,
+    ensure_corpus,
     run_conversion,
 )
 
@@ -34,7 +34,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    ensure_sample_pdf()
+    ensure_corpus()
     args.output.parent.mkdir(parents=True, exist_ok=True)
 
     events, runtime_seconds, peak_memory_bytes_value, exit_code = run_conversion(

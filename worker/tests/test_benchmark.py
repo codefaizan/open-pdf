@@ -7,14 +7,16 @@ import pytest
 
 from open_pdf_worker.harness import (
     EXPECTED_PATH,
+    SAMPLE_PDF,
     compare_expected_workbook,
-    ensure_sample_pdf,
+    ensure_corpus,
     run_conversion,
 )
 
 
 def test_benchmark_reports_accuracy_runtime_and_memory(tmp_path: Path) -> None:
-    sample_pdf = ensure_sample_pdf()
+    ensure_corpus()
+    sample_pdf = SAMPLE_PDF
     output = tmp_path / "benchmark.xlsx"
     events, runtime_seconds, peak_memory, exit_code = run_conversion(
         sample_pdf,

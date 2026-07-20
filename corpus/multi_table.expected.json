@@ -1,0 +1,29 @@
+{
+  "document": "multi_table.pdf",
+  "document_class": "multi_table",
+  "pages": "1",
+  "minimum_worksheets": 2,
+  "expect_review_sheet": false,
+  "required_values": [
+    "Morning",
+    "00045",
+    "TKT-1001",
+    "TKT-1002",
+    "High",
+    "Closed"
+  ],
+  "header_values": [
+    "Shift",
+    "Staff ID",
+    "Hours",
+    "Ticket",
+    "Priority",
+    "Status"
+  ],
+  "rows": [
+    ["Morning", "00045", "8.0"],
+    ["Evening", "00078", "7.5"],
+    ["TKT-1001", "High", "Open"],
+    ["TKT-1002", "Low", "Closed"]
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "document": "rotated_table.pdf",
+  "document_class": "rotated",
+  "pages": "1",
+  "minimum_worksheets": 1,
+  "expect_review_sheet": false,
+  "required_values": [
+    "00987",
+    "00988",
+    "B-2024-01",
+    "B-2024-02"
+  ],
+  "header_values": [
+    "Item ID",
+    "Batch",
+    "Count"
+  ],
+  "rows": [
+    ["00987", "B-2024-01", "50"],
+    ["00988", "B-2024-02", "35"]
+  ]
+}

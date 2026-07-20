@@ -1,0 +1,32 @@
+{
+  "document": "merged_cell_table.pdf",
+  "document_class": "merged_cell",
+  "pages": "1",
+  "minimum_worksheets": 1,
+  "expect_review_sheet": false,
+  "required_values": [
+    "North Region",
+    "Store A",
+    "Store B",
+    "001-Jane",
+    "002-Bob",
+    "5400.00",
+    "4275.00"
+  ],
+  "header_values": [
+    "Store",
+    "Manager",
+    "Units",
+    "Revenue"
+  ],
+  "rows": [
+    ["Store A", "001-Jane", "120", "5400.00"],
+    ["Store B", "002-Bob", "95", "4275.00"]
+  ],
+  "merged_ranges": [
+    {
+      "range": "B1:D1",
+      "value": "North Region"
+    }
+  ]
+}

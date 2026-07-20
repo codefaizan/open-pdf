@@ -1,0 +1,40 @@
+{
+  "digital_classes": [
+    {
+      "id": "ruled",
+      "pdf": "ruled_table.pdf",
+      "expected": "ruled_table.expected.json",
+      "pages": "1"
+    },
+    {
+      "id": "borderless",
+      "pdf": "borderless_table.pdf",
+      "expected": "borderless_table.expected.json",
+      "pages": "1"
+    },
+    {
+      "id": "merged_cell",
+      "pdf": "merged_cell_table.pdf",
+      "expected": "merged_cell_table.expected.json",
+      "pages": "1"
+    },
+    {
+      "id": "multi_table",
+      "pdf": "multi_table.pdf",
+      "expected": "multi_table.expected.json",
+      "pages": "1"
+    },
+    {
+      "id": "multi_page",
+      "pdf": "multi_page_table.pdf",
+      "expected": "multi_page_table.expected.json",
+      "pages": "all"
+    },
+    {
+      "id": "rotated",
+      "pdf": "rotated_table.pdf",
+      "expected": "rotated_table.expected.json",
+      "pages": "1"
+    }
+  ]
+}

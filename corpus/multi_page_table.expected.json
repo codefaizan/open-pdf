@@ -1,0 +1,27 @@
+{
+  "document": "multi_page_table.pdf",
+  "document_class": "multi_page",
+  "pages": "all",
+  "minimum_worksheets": 2,
+  "expect_review_sheet": false,
+  "required_values": [
+    "SKU-001",
+    "SKU-005",
+    "2024-06-01",
+    "2024-06-05"
+  ],
+  "header_values": [
+    "Line",
+    "SKU",
+    "Qty",
+    "Ship Date"
+  ],
+  "rows": [
+    ["1", "SKU-001", "12", "2024-06-01"],
+    ["2", "SKU-002", "8", "2024-06-02"],
+    ["3", "SKU-003", "15", "2024-06-03"],
+    ["4", "SKU-004", "6", "2024-06-04"],
+    ["5", "SKU-005", "20", "2024-06-05"]
+  ],
+  "source_pages": [1, 2]
+}

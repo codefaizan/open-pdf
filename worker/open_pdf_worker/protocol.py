@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 
-PAGE_RANGE_RE = re.compile(r"^\d+(?:-\d+)?(?:,\d+(?:-\d+)?)*$")
+PAGE_RANGE_RE = re.compile(r"^(?:all|\d+(?:-\d+)?(?:,\d+(?:-\d+)?)*)$")
 
 
 @dataclass(frozen=True)

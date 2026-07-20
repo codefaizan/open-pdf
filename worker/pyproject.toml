@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "open-pdf-worker"
+version = "0.1.0"
+description = "Local PDF-to-Excel conversion worker for Open PDF"
+requires-python = ">=3.10"
+dependencies = [
+    "camelot-py==2.0.0",
+    "openpyxl==3.1.5",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==8.3.4",
+    "reportlab==4.2.5",
+]
+
+[project.scripts]
+open-pdf-worker = "open_pdf_worker.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["open_pdf_worker*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

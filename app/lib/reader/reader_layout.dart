@@ -8,6 +8,8 @@ class ReaderLayout extends StatelessWidget {
     required this.onOpenPdf,
     required this.body,
     this.sidebar,
+    this.controlBar,
+    this.searchBar,
     super.key,
   });
 
@@ -16,6 +18,8 @@ class ReaderLayout extends StatelessWidget {
   final VoidCallback onOpenPdf;
   final Widget body;
   final Widget? sidebar;
+  final Widget? controlBar;
+  final Widget? searchBar;
 
   @override
   Widget build(BuildContext context) {
@@ -26,6 +30,8 @@ class ReaderLayout extends StatelessWidget {
           onOpenPdf: onOpenPdf,
           onClose: onClose,
         ),
+        ?controlBar,
+        ?searchBar,
         Expanded(
           child: Row(
             children: [

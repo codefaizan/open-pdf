@@ -37,14 +37,14 @@ Work the **frontier**: any ticket whose blockers are all done.
 
 **Blocked by:** Ticket 2 — Open and read a PDF.
 
-- [ ] Users can navigate with thumbnails, previous/next controls, and direct page-number entry.
-- [ ] Users can zoom in or out and choose fit-width or fit-page behavior.
-- [ ] Standard keyboard shortcuts cover opening, searching, paging, and zooming.
-- [ ] Text search highlights matches and supports moving to the next or previous result.
-- [ ] Document links and outlines navigate to their destinations.
-- [ ] Password-protected PDFs can be opened after a successful password prompt and can recover from a rejected password.
-- [ ] Large documents scroll and navigate without rendering all pages simultaneously or making controls unresponsive.
-- [ ] Stable high-level layout tests cover the empty, reading, searching, password, and error states.
+- [x] Users can navigate with thumbnails, previous/next controls, and direct page-number entry.
+- [x] Users can zoom in or out and choose fit-width or fit-page behavior.
+- [x] Standard keyboard shortcuts cover opening, searching, paging, and zooming.
+- [x] Text search highlights matches and supports moving to the next or previous result.
+- [x] Document links and outlines navigate to their destinations.
+- [x] Password-protected PDFs can be opened after a successful password prompt and can recover from a rejected password.
+- [x] Large documents scroll and navigate without rendering all pages simultaneously or making controls unresponsive.
+- [x] Stable high-level layout tests cover the empty, reading, searching, password, and error states.
 
 ## Ticket 4: Convert the open PDF with one action
 

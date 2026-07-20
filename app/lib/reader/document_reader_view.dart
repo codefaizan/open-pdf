@@ -46,7 +46,7 @@ class DocumentReaderView extends StatefulWidget {
 class _DocumentReaderViewState extends State<DocumentReaderView> {
   final _viewerController = PdfViewerController();
   final _searchFieldFocusNode = FocusNode();
-  late final PdfTextSearcher _textSearcher;
+  PdfTextSearcher? _textSearcher;
 
   var _currentPage = 1;
   var _pageCount = 1;
@@ -64,18 +64,27 @@ class _DocumentReaderViewState extends State<DocumentReaderView> {
   @override
   void initState() {
     super.initState();
-    _textSearcher = PdfTextSearcher(_viewerController)..addListener(_onSearchUpdated);
     widget.onSearchHandlerReady?.call(_showSearchFromShortcut);
   }
 
   @override
   void dispose() {
-    _textSearcher.removeListener(_onSearchUpdated);
-    _textSearcher.dispose();
+    _disposeTextSearcher();
     _searchFieldFocusNode.dispose();
     unawaited(_conversionService.cancelActiveConversion());
     unawaited(_conversionService.cleanupLeftoverTemps());
     super.dispose();
+  }
+
+  void _disposeTextSearcher() {
+    _textSearcher?.removeListener(_onSearchUpdated);
+    _textSearcher?.dispose();
+    _textSearcher = null;
+  }
+
+  void _attachTextSearcher(PdfViewerController controller) {
+    _disposeTextSearcher();
+    _textSearcher = PdfTextSearcher(controller)..addListener(_onSearchUpdated);
   }
 
   void _onSearchUpdated() {
@@ -126,7 +135,7 @@ class _DocumentReaderViewState extends State<DocumentReaderView> {
       _searchVisible = !_searchVisible;
       if (!_searchVisible) {
         _searchQuery = '';
-        _textSearcher.resetTextSearch();
+        _textSearcher?.resetTextSearch();
       }
     });
     if (_searchVisible) {
@@ -146,11 +155,15 @@ class _DocumentReaderViewState extends State<DocumentReaderView> {
 
   void _updateSearchQuery(String query) {
     setState(() => _searchQuery = query);
-    if (query.trim().isEmpty) {
-      _textSearcher.resetTextSearch();
+    final searcher = _textSearcher;
+    if (searcher == null) {
       return;
     }
-    _textSearcher.startTextSearch(
+    if (query.trim().isEmpty) {
+      searcher.resetTextSearch();
+      return;
+    }
+    searcher.startTextSearch(
       query,
       caseInsensitive: true,
       goToFirstMatch: true,
@@ -158,12 +171,16 @@ class _DocumentReaderViewState extends State<DocumentReaderView> {
   }
 
   String _searchMatchLabel() {
-    final matches = _textSearcher.matches;
+    final searcher = _textSearcher;
+    if (searcher == null) {
+      return 'No matches';
+    }
+    final matches = searcher.matches;
     if (_searchQuery.trim().isEmpty || matches.isEmpty) {
-      return _textSearcher.isSearching ? 'Searching…' : 'No matches';
+      return searcher.isSearching ? 'Searching…' : 'No matches';
     }
 
-    final index = _textSearcher.currentIndex;
+    final index = searcher.currentIndex;
     if (index == null) {
       return '${matches.length} matches';
     }
@@ -408,8 +425,8 @@ class _DocumentReaderViewState extends State<DocumentReaderView> {
               query: _searchQuery,
               matchLabel: _searchMatchLabel(),
               onQueryChanged: _updateSearchQuery,
-              onPreviousMatch: () => _textSearcher.goToPrevMatch(),
-              onNextMatch: () => _textSearcher.goToNextMatch(),
+              onPreviousMatch: () => _textSearcher?.goToPrevMatch(),
+              onNextMatch: () => _textSearcher?.goToNextMatch(),
               onClose: _toggleSearch,
               searchFieldFocusNode: _searchFieldFocusNode,
             )
@@ -461,6 +478,9 @@ class _DocumentReaderViewState extends State<DocumentReaderView> {
                 limitRenderingCache: true,
                 enableKeyboardNavigation: true,
                 onViewerReady: (document, controller) async {
+                  // pdfrx requires a ready controller; constructing earlier crashes (#576).
+                  _attachTextSearcher(controller);
+                  if (mounted) setState(() {});
                   final outline = await document.loadOutline();
                   if (!mounted) return;
                   setState(() {
@@ -474,7 +494,8 @@ class _DocumentReaderViewState extends State<DocumentReaderView> {
                   }
                 },
                 pagePaintCallbacks: [
-                  _textSearcher.pageTextMatchPaintCallback,
+                  if (_textSearcher != null)
+                    _textSearcher!.pageTextMatchPaintCallback,
                 ],
                 linkHandlerParams: PdfLinkHandlerParams(
                   onLinkTap: _handleLinkTap,

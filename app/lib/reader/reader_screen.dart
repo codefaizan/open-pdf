@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:open_pdf/reader/document_error_view.dart';
 import 'package:open_pdf/reader/document_reader_view.dart';
@@ -11,11 +13,13 @@ class ReaderScreen extends StatefulWidget {
   const ReaderScreen({
     this.pdfOpenService = const NativePdfOpenService(),
     this.initialErrorMessage,
+    this.initialPdfPath,
     super.key,
   });
 
   final PdfOpenService pdfOpenService;
   final String? initialErrorMessage;
+  final String? initialPdfPath;
 
   @override
   State<ReaderScreen> createState() => _ReaderScreenState();
@@ -31,6 +35,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
   void initState() {
     super.initState();
     _errorMessage = widget.initialErrorMessage;
+    final initialPath = widget.initialPdfPath;
+    if (initialPath != null && initialPath.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(_openPath(initialPath));
+      });
+    }
   }
 
   Future<void> _openPdf() async {

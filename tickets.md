@@ -129,14 +129,14 @@ Work the **frontier**: any ticket whose blockers are all done.
 
 **Blocked by:** Ticket 3 — Navigate and search real documents; Ticket 8 — Pass the conversion release gate.
 
-- [ ] The package contains the Flutter application, compatible PDF engine, frozen worker, OCR models, and required license notices.
-- [ ] Apple silicon and Intel are supported through verified architecture-specific or universal artifacts.
-- [ ] The embedded helper resolves from the installed application and writes only to permitted user data or temporary locations.
-- [ ] Nested executable signing, hardened runtime, entitlements, notarization, and stapling are automated without storing credentials in source control.
-- [ ] A clean supported Mac can install, launch, open, navigate, search, convert, cancel, recover from a failure, and remove the application.
-- [ ] Viewing and conversion pass with network access disabled.
-- [ ] Paths containing spaces and non-English characters work from the installed application.
-- [ ] Gatekeeper accepts a properly credentialed release artifact.
+- [x] The package contains the Flutter application, compatible PDF engine, frozen worker, OCR models, and required license notices.
+- [x] Apple silicon and Intel are supported through verified architecture-specific or universal artifacts.
+- [x] The embedded helper resolves from the installed application and writes only to permitted user data or temporary locations.
+- [x] Nested executable signing, hardened runtime, entitlements, notarization, and stapling are automated without storing credentials in source control.
+- [x] A clean supported Mac can install, launch, open, navigate, search, convert, cancel, recover from a failure, and remove the application.
+- [x] Viewing and conversion pass with network access disabled.
+- [x] Paths containing spaces and non-English characters work from the installed application.
+- [x] Gatekeeper accepts a properly credentialed release artifact.
 
 ## Ticket 10: Ship the Windows installer
 

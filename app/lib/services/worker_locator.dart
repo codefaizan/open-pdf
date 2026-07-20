@@ -5,19 +5,37 @@ class WorkerLocator {
   const WorkerLocator({
     this.environment = const String.fromEnvironment('OPEN_PDF_WORKER_EXECUTABLE'),
     this.repoRoot,
+    this.searchRoots,
+    this.runtimeEnvironment,
   });
 
-  /// Explicit worker path, typically set in tests via environment variable.
+  /// Explicit worker path from `--dart-define=OPEN_PDF_WORKER_EXECUTABLE=...`.
   final String environment;
 
   /// Repository root for development fallbacks.
   final String? repoRoot;
 
+  /// Optional directory roots to search (tests / overrides).
+  /// Defaults to [Directory.current] and the Flutter executable location.
+  final List<String>? searchRoots;
+
+  /// Optional process environment (tests). Defaults to [Platform.environment].
+  final Map<String, String>? runtimeEnvironment;
+
+  String get _effectiveEnvironment {
+    if (environment.isNotEmpty) {
+      return environment;
+    }
+    return (runtimeEnvironment ?? Platform.environment)['OPEN_PDF_WORKER_EXECUTABLE'] ??
+        '';
+  }
+
   /// Returns the worker launch command as a direct argument list (never shell).
   /// Returns the resolved worker executable when launching a single binary.
   String? resolvedExecutablePath() {
-    if (environment.isNotEmpty) {
-      return environment;
+    final env = _effectiveEnvironment;
+    if (env.isNotEmpty) {
+      return env;
     }
 
     final bundled = _bundledExecutable();
@@ -29,8 +47,9 @@ class WorkerLocator {
   }
 
   List<String> resolveLaunchCommand() {
-    if (environment.isNotEmpty) {
-      return [environment];
+    final env = _effectiveEnvironment;
+    if (env.isNotEmpty) {
+      return [env];
     }
 
     final bundled = _bundledExecutable();
@@ -55,7 +74,7 @@ class WorkerLocator {
   }
 
   String? workingDirectory() {
-    if (environment.isNotEmpty || _bundledExecutable() != null) {
+    if (_effectiveEnvironment.isNotEmpty || _bundledExecutable() != null) {
       return null;
     }
 
@@ -134,8 +153,32 @@ class WorkerLocator {
       return repoRoot;
     }
 
-    var dir = Directory.current;
-    for (var depth = 0; depth < 8; depth++) {
+    for (final startPath in _rootSearchPaths()) {
+      final found = _walkForRepoRoot(Directory(startPath));
+      if (found != null) {
+        return found;
+      }
+    }
+
+    return null;
+  }
+
+  Iterable<String> _rootSearchPaths() {
+    if (searchRoots != null) {
+      return searchRoots!;
+    }
+    return [
+      Directory.current.path,
+      File(Platform.resolvedExecutable).parent.path,
+    ];
+  }
+
+  /// Flutter macOS debug executables live 9 levels below the repo root.
+  static const _maxRepoWalkDepth = 16;
+
+  String? _walkForRepoRoot(Directory start) {
+    var dir = start;
+    for (var depth = 0; depth < _maxRepoWalkDepth; depth++) {
       if (File('${dir.path}/tickets.md').existsSync()) {
         return dir.path;
       }
@@ -145,7 +188,6 @@ class WorkerLocator {
       }
       dir = parent;
     }
-
     return null;
   }
 }

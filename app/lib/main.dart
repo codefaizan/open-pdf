@@ -5,5 +5,10 @@ import 'package:pdfrx/pdfrx.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await pdfrxFlutterInitialize();
-  runApp(const OpenPdfApp());
+  const autoOpen = String.fromEnvironment('OPEN_PDF_AUTO_OPEN');
+  runApp(
+    OpenPdfApp(
+      initialPdfPath: autoOpen.isEmpty ? null : autoOpen,
+    ),
+  );
 }

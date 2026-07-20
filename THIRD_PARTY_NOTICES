@@ -24,10 +24,11 @@ OCR models and native OCR binary
 - eng.traineddata (Tesseract English model) — Apache License 2.0
   Bundled at worker/open_pdf_worker/tessdata/eng.traineddata and included
   in the frozen worker package. Runtime model downloads are disabled.
-- Tesseract OCR binary — Apache License 2.0
-  Resolved at runtime from the installation environment (or TESSERACT_CMD).
-  Platform installers (Tickets 9/10) must ship a compatible binary with the
-  application; the conversion release gate assumes it is available offline.
+- Tesseract OCR binary 5.5.x — Apache License 2.0
+  Bundled beside the frozen worker inside the macOS application package
+  (Contents/Resources/worker/open_pdf_worker/tesseract plus linked dylibs).
+  Override with TESSERACT_CMD only for development. Runtime downloads are
+  disabled; Windows packaging (Ticket 10) ships its own binary likewise.
 
 Desktop application (Flutter)
 -----------------------------

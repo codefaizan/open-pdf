@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:open_pdf/reader/reader_screen.dart';
 
 class OpenPdfApp extends StatelessWidget {
-  const OpenPdfApp({super.key});
+  const OpenPdfApp({
+    this.initialPdfPath,
+    super.key,
+  });
+
+  /// Optional path opened on launch (debug/smoke only).
+  final String? initialPdfPath;
 
   @override
   Widget build(BuildContext context) {
@@ -23,7 +29,7 @@ class OpenPdfApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: const ReaderScreen(),
+      home: ReaderScreen(initialPdfPath: initialPdfPath),
     );
   }
 }

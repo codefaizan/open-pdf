@@ -13,19 +13,26 @@ String documentDisplayName(String path) {
 /// Validates that [path] refers to a readable PDF file.
 Future<String?> validatePdfPath(String path) async {
   final file = File(path);
-  if (!await file.exists()) {
+  // Sync checks so callers (and widget tests) are not blocked on dart:io
+  // futures that do not complete under Flutter's fake-async test zone.
+  if (!file.existsSync()) {
     return 'The selected file could not be found.';
   }
 
   try {
-    final length = await file.length();
+    final length = file.lengthSync();
     if (length == 0) {
       return 'This PDF appears to be empty or damaged.';
     }
 
-    final header = await file.openRead(0, 4).first;
-    if (header.length < 4 || String.fromCharCodes(header) != '%PDF') {
-      return 'This file does not appear to be a valid PDF.';
+    final raf = file.openSync();
+    try {
+      final header = raf.readSync(4);
+      if (header.length < 4 || String.fromCharCodes(header) != '%PDF') {
+        return 'This file does not appear to be a valid PDF.';
+      }
+    } finally {
+      raf.closeSync();
     }
   } on FileSystemException {
     return 'The selected file could not be read.';

@@ -8,11 +8,13 @@ class ReaderShortcuts extends StatelessWidget {
     required this.onOpenPdf,
     required this.onSearch,
     required this.child,
+    this.onCloseTab,
     super.key,
   });
 
   final VoidCallback onOpenPdf;
   final VoidCallback onSearch;
+  final VoidCallback? onCloseTab;
   final Widget child;
 
   static bool get _useControlModifier {
@@ -33,6 +35,12 @@ class ReaderShortcuts extends StatelessWidget {
           control: _useControlModifier,
           meta: !_useControlModifier,
         ): const _SearchIntent(),
+        if (onCloseTab != null)
+          SingleActivator(
+            LogicalKeyboardKey.keyW,
+            control: _useControlModifier,
+            meta: !_useControlModifier,
+          ): const _CloseTabIntent(),
       },
       child: Actions(
         actions: {
@@ -48,6 +56,13 @@ class ReaderShortcuts extends StatelessWidget {
               return null;
             },
           ),
+          if (onCloseTab != null)
+            _CloseTabIntent: CallbackAction<_CloseTabIntent>(
+              onInvoke: (_) {
+                onCloseTab!();
+                return null;
+              },
+            ),
         },
         child: Focus(
           autofocus: true,
@@ -64,4 +79,8 @@ class _OpenPdfIntent extends Intent {
 
 class _SearchIntent extends Intent {
   const _SearchIntent();
+}
+
+class _CloseTabIntent extends Intent {
+  const _CloseTabIntent();
 }

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:open_pdf/reader/conversion_progress_panel.dart';
@@ -11,6 +13,7 @@ import 'package:open_pdf/reader/reader_layout.dart';
 import 'package:open_pdf/reader/reader_navigation_controls.dart';
 import 'package:open_pdf/reader/reader_screen.dart';
 import 'package:open_pdf/reader/reader_search_bar.dart';
+import 'package:open_pdf/reader/reader_tab_bar.dart';
 import 'package:open_pdf/reader/reader_zoom_controls.dart';
 import 'package:open_pdf/services/pdf_open_service.dart';
 
@@ -331,6 +334,111 @@ void main() {
 
       await tester.tap(find.byKey(const Key('reader_close_document')));
       expect(closed, isTrue);
+    });
+
+    testWidgets('opens multiple PDFs as tabs and can switch between them', (
+      tester,
+    ) async {
+      final dir = Directory.systemTemp.createTempSync('open-pdf-tabs-');
+      addTearDown(() {
+        if (dir.existsSync()) {
+          dir.deleteSync(recursive: true);
+        }
+      });
+
+      final first = File('${dir.path}/first.pdf')
+        ..writeAsBytesSync(const [0x25, 0x50, 0x44, 0x46]);
+      final second = File('${dir.path}/second.pdf')
+        ..writeAsBytesSync(const [0x25, 0x50, 0x44, 0x46]);
+      final service = _SequencePdfOpenService([second.path]);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ReaderScreen(
+            pdfOpenService: service,
+            initialPdfPath: first.path,
+          ),
+        ),
+      );
+      await tester.pump(); // post-frame open + sync validation
+
+      expect(find.byKey(const Key('reader_tab_bar')), findsOneWidget);
+      expect(find.byKey(const Key('reader_tab_0')), findsOneWidget);
+      expect(find.text('first.pdf'), findsWidgets);
+
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(const Key('reader_toolbar')),
+          matching: find.text('Open'),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byKey(const Key('reader_tab_0')), findsOneWidget);
+      expect(find.byKey(const Key('reader_tab_1')), findsOneWidget);
+      expect(find.text('second.pdf'), findsWidgets);
+
+      await tester.tap(find.byKey(const Key('reader_tab_0')));
+      await tester.pump();
+
+      expect(find.text('first.pdf'), findsWidgets);
+    });
+
+    testWidgets('closing the last tab returns to the empty state', (tester) async {
+      final dir = Directory.systemTemp.createTempSync('open-pdf-tabs-close-');
+      addTearDown(() {
+        if (dir.existsSync()) {
+          dir.deleteSync(recursive: true);
+        }
+      });
+
+      final pdf = File('${dir.path}/alone.pdf')
+        ..writeAsBytesSync(const [0x25, 0x50, 0x44, 0x46]);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ReaderScreen(initialPdfPath: pdf.path),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byKey(const Key('reader_tab_bar')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('reader_tab_close_0')));
+      await tester.pump();
+
+      expect(find.byKey(const Key('empty_open_pdf')), findsOneWidget);
+      expect(find.byKey(const Key('reader_tab_bar')), findsNothing);
+    });
+  });
+
+  group('reader tab bar', () {
+    testWidgets('selects and closes tabs', (tester) async {
+      var selected = 0;
+      var closed = -1;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ReaderTabBar(
+              titles: const ['a.pdf', 'b.pdf'],
+              activeIndex: selected,
+              onSelect: (index) => selected = index,
+              onClose: (index) => closed = index,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byKey(const Key('reader_tab_bar')), findsOneWidget);
+      expect(find.text('a.pdf'), findsOneWidget);
+      expect(find.text('b.pdf'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('reader_tab_1')));
+      expect(selected, 1);
+
+      await tester.tap(find.byKey(const Key('reader_tab_close_0')));
+      expect(closed, 0);
     });
   });
 }

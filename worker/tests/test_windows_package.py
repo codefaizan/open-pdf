@@ -74,7 +74,9 @@ def test_appx_manifest_declares_full_trust_desktop_x64() -> None:
     assert "runFullTrust" in text
     assert "Windows.Desktop" in text
     assert "open_pdf.exe" in text
-    assert "__PUBLISHER__" in text or "CN=" in text
+    assert "FaizanAhmad.OpenPDF" in text
+    assert "CN=843F1E46-0548-47F4-AEE8-9286B920DB12" in text
+    assert "Faizan Ahmad" in text
 
 
 def test_signing_script_requires_env_credentials_not_repo_secrets() -> None:

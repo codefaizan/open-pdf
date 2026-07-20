@@ -4,14 +4,15 @@
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
   IgnorableNamespaces="uap rescap">
+  <!-- Store identity from Partner Center (OpenPDF / 9NFF5VJP0FKK) -->
   <Identity
-    Name="OpenPDF.Reader"
-    Publisher="__PUBLISHER__"
+    Name="FaizanAhmad.OpenPDF"
+    Publisher="CN=843F1E46-0548-47F4-AEE8-9286B920DB12"
     Version="__VERSION__"
     ProcessorArchitecture="x64" />
   <Properties>
     <DisplayName>Open PDF</DisplayName>
-    <PublisherDisplayName>Open PDF</PublisherDisplayName>
+    <PublisherDisplayName>Faizan Ahmad</PublisherDisplayName>
     <Description>Local-first PDF reader and Excel converter.</Description>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>

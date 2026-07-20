@@ -40,7 +40,12 @@ if ($env:OS -ne "Windows_NT") {
 }
 
 if (-not $Publisher) {
-    $Publisher = if ($env:OPEN_PDF_WINDOWS_PUBLISHER) { $env:OPEN_PDF_WINDOWS_PUBLISHER } else { "CN=Open PDF" }
+    $Publisher = if ($env:OPEN_PDF_WINDOWS_PUBLISHER) {
+        $env:OPEN_PDF_WINDOWS_PUBLISHER
+    } else {
+        # Microsoft Store identity (Partner Center product OpenPDF).
+        "CN=843F1E46-0548-47F4-AEE8-9286B920DB12"
+    }
 }
 
 if (-not $Version) {
@@ -141,7 +146,11 @@ png(dest / 'Wide310x150Logo.png', 310, 150)
 }
 
 $ManifestTemplate = Get-Content (Join-Path $Root "packaging\windows\AppxManifest.xml") -Raw
-$Manifest = $ManifestTemplate.Replace("__PUBLISHER__", $Publisher).Replace("__VERSION__", $Version)
+# Identity Name + Publisher are Store-assigned; only version is substituted at pack time.
+$Manifest = $ManifestTemplate.Replace("__VERSION__", $Version)
+if ($Manifest -match "__PUBLISHER__") {
+    $Manifest = $Manifest.Replace("__PUBLISHER__", $Publisher)
+}
 $ManifestPath = Join-Path $StageDir "AppxManifest.xml"
 # Avoid UTF-8 BOM — MakeAppx rejects a BOM before the XML declaration.
 [System.IO.File]::WriteAllText($ManifestPath, $Manifest)

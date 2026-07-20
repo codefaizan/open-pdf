@@ -177,15 +177,30 @@ def flatten_values(cells: list[list[str]]) -> set[str]:
     return normalized
 
 
+def _content_values(cells: list[list[str]]) -> set[str]:
+    """Cell values excluding source-page metadata rows."""
+    values: set[str] = set()
+    for row in cells:
+        if row and row[0] == "Source page(s)":
+            continue
+        for value in row:
+            text = _normalize_cell(value)
+            if text:
+                values.add(text)
+    return values
+
+
 def compare_expected_workbook(workbook_path: Path, expected: dict) -> dict:
     cells = read_workbook_cells(workbook_path)
     flat = flatten_values(cells)
+    content = _content_values(cells)
     required = set(expected["required_values"])
     headers = set(expected.get("header_values", []))
     width = len(expected["rows"][0]) if expected.get("rows") else 0
 
     found_required = required & flat
     found_headers = headers & flat
+    relevant = required | headers
 
     expected_rows = {tuple(_normalize_cell(value) for value in row) for row in expected.get("rows", [])}
     actual_rows: set[tuple[str, ...]] = set()
@@ -198,7 +213,7 @@ def compare_expected_workbook(workbook_path: Path, expected: dict) -> dict:
     matched_rows = len(expected_rows & actual_rows)
 
     recall = len(found_required) / len(required) if required else 1.0
-    precision = len(found_required) / (len(flat) or 1)
+    precision = len(relevant & content) / (len(content) or 1)
 
     source_metadata_found = any(
         row and row[0] == "Source page(s)" for row in cells
@@ -226,9 +241,30 @@ def compare_expected_workbook(workbook_path: Path, expected: dict) -> dict:
         else sorted(source_pages) == sorted(expected_source_pages)
     )
 
+    sheet_names = [name for name in workbook_sheet_names(workbook_path) if name != REVIEW_SHEET_NAME]
+    tables_found = len(sheet_names)
+    tables_expected = int(expected.get("minimum_worksheets", 1))
+    table_detection = (
+        1.0
+        if tables_expected <= 0
+        else min(1.0, tables_found / tables_expected)
+    )
+
+    row_score = matched_rows / len(expected_rows) if expected_rows else 1.0
+    structural_accuracy = (
+        row_score
+        + (1.0 if merged_ok else 0.0)
+        + (1.0 if source_pages_ok else 0.0)
+        + (1.0 if review_sheet_ok else 0.0)
+    ) / 4.0
+
     return {
         "cell_recall": recall,
         "cell_precision": precision,
+        "table_detection": table_detection,
+        "tables_found": tables_found,
+        "tables_expected": tables_expected,
+        "structural_accuracy": structural_accuracy,
         "matched_rows": matched_rows,
         "expected_rows": len(expected_rows),
         "headers_found": len(found_headers),
@@ -244,10 +280,14 @@ def compare_expected_workbook(workbook_path: Path, expected: dict) -> dict:
 
 
 class WorkerClient:
-    def __init__(self) -> None:
+    def __init__(self, command: list[str] | None = None) -> None:
+        self.command = command or [sys.executable, "-m", "open_pdf_worker"]
+        cwd = WORKER_ROOT
+        if command and Path(command[0]).name.startswith("open_pdf_worker"):
+            cwd = Path(command[0]).resolve().parent
         self.process = subprocess.Popen(
-            [sys.executable, "-m", "open_pdf_worker"],
-            cwd=WORKER_ROOT,
+            self.command,
+            cwd=cwd,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -300,11 +340,12 @@ def run_conversion(
     *,
     pages: str | None = "1",
     request_id: str = "convert",
+    worker_command: list[str] | None = None,
 ) -> tuple[list[dict], float, int, int]:
     if output_xlsx.exists():
         output_xlsx.unlink()
 
-    client = WorkerClient()
+    client = WorkerClient(command=worker_command)
     messages = [
         {"type": "handshake", "protocol_version": PROTOCOL_VERSION},
         {
@@ -332,7 +373,25 @@ def run_conversion(
     return events, elapsed, peak_memory_bytes(), client.process.returncode or 0
 
 
-def benchmark_digital_corpus(tmp_dir: Path) -> dict:
+def _failed_conversion_metrics(expected: dict) -> dict:
+    return {
+        "cell_recall": 0.0,
+        "cell_precision": 0.0,
+        "table_detection": 0.0,
+        "structural_accuracy": 0.0,
+        "matched_rows": 0,
+        "expected_rows": 0,
+        "values_missing": expected.get("required_values", []),
+        "source_metadata_found": False,
+        "review_sheet_ok": False,
+    }
+
+
+def benchmark_digital_corpus(
+    tmp_dir: Path,
+    *,
+    worker_command: list[str] | None = None,
+) -> dict:
     ensure_corpus()
     manifest = load_digital_corpus_manifest()
     by_class: dict[str, dict] = {}
@@ -347,8 +406,14 @@ def benchmark_digital_corpus(tmp_dir: Path) -> dict:
             output,
             pages=entry.get("pages", "1"),
             request_id=f"benchmark-{entry['id']}",
+            worker_command=worker_command,
         )
-        metrics = compare_expected_workbook(output, expected)
+        if events and events[-1]["type"] == "complete":
+            metrics = compare_expected_workbook(output, expected)
+            completed = True
+        else:
+            metrics = _failed_conversion_metrics(expected)
+            completed = False
         metrics.update(
             {
                 "document_class": entry["id"],
@@ -357,7 +422,7 @@ def benchmark_digital_corpus(tmp_dir: Path) -> dict:
                 "peak_memory_bytes": peak_memory,
                 "exit_code": exit_code,
                 "progress_events": sum(1 for event in events if event["type"] == "progress"),
-                "completed": events[-1]["type"] == "complete" if events else False,
+                "completed": completed,
             }
         )
         by_class[entry["id"]] = metrics
@@ -365,7 +430,11 @@ def benchmark_digital_corpus(tmp_dir: Path) -> dict:
     return {"by_class": by_class}
 
 
-def benchmark_scan_corpus(tmp_dir: Path) -> dict:
+def benchmark_scan_corpus(
+    tmp_dir: Path,
+    *,
+    worker_command: list[str] | None = None,
+) -> dict:
     ensure_scan_corpus()
     manifest = load_scan_corpus_manifest()
     by_class: dict[str, dict] = {}
@@ -380,14 +449,19 @@ def benchmark_scan_corpus(tmp_dir: Path) -> dict:
             output,
             pages=entry.get("pages", "1"),
             request_id=f"scan-benchmark-{entry['id']}",
+            worker_command=worker_command,
         )
-        metrics = compare_expected_workbook(output, expected)
         extraction_methods = []
         if events and events[-1]["type"] == "complete":
+            metrics = compare_expected_workbook(output, expected)
             extraction_methods = [
                 worksheet.get("extraction_method", "")
                 for worksheet in events[-1].get("worksheets", [])
             ]
+            completed = True
+        else:
+            metrics = _failed_conversion_metrics(expected)
+            completed = False
         metrics.update(
             {
                 "document_class": entry["id"],
@@ -396,7 +470,7 @@ def benchmark_scan_corpus(tmp_dir: Path) -> dict:
                 "peak_memory_bytes": peak_memory,
                 "exit_code": exit_code,
                 "progress_events": sum(1 for event in events if event["type"] == "progress"),
-                "completed": events[-1]["type"] == "complete" if events else False,
+                "completed": completed,
                 "extraction_methods": extraction_methods,
             }
         )

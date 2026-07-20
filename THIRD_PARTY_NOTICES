@@ -1,0 +1,49 @@
+Third-Party Notices — Open PDF
+================================
+
+This product includes software and model artifacts from third parties.
+Versions below are the production pins for the first release. Exact
+transitive versions are recorded in `worker/requirements.lock` and
+`app/pubspec.lock`.
+
+Conversion worker (Python)
+--------------------------
+- camelot-py 2.0.0 — MIT License
+- openpyxl 3.1.5 — MIT License
+- pytesseract 0.3.13 — Apache License 2.0
+- reportlab 4.2.5 — BSD License
+- playa-pdf 1.1.0 (Camelot dependency) — license as distributed upstream
+- pypdfium2 5.12.1 — Apache License 2.0 / PDFium (BSD-style)
+- numpy 2.5.1 — BSD License
+- pillow 12.3.0 — HPND License
+- opencv-python-headless 5.0.0.93 — Apache License 2.0
+- chardet, click, tabulate, packaging, et-xmlfile — see requirements.lock
+
+OCR models and native OCR binary
+--------------------------------
+- eng.traineddata (Tesseract English model) — Apache License 2.0
+  Bundled at worker/open_pdf_worker/tessdata/eng.traineddata and included
+  in the frozen worker package. Runtime model downloads are disabled.
+- Tesseract OCR binary — Apache License 2.0
+  Resolved at runtime from the installation environment (or TESSERACT_CMD).
+  Platform installers (Tickets 9/10) must ship a compatible binary with the
+  application; the conversion release gate assumes it is available offline.
+
+Desktop application (Flutter)
+-----------------------------
+Pinned via app/pubspec.lock. Direct production dependencies include:
+- flutter (SDK)
+- pdfrx — PDF rendering
+- file_selector — native file dialogs
+- url_launcher — reveal/open saved workbooks
+- path, cupertino_icons
+
+Build tooling (not shipped to end users)
+----------------------------------------
+- pyinstaller 6.21.0 — GPL-compatible / commercial terms as upstream
+- pytest 8.3.4 — MIT License
+
+No heavier conversion engines (for example PaddleOCR or Docling) are
+bundled in this release. Adding one requires measured corpus failures that
+justify the package-size and maintenance cost, recorded in the release gate
+report.

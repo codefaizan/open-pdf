@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -103,7 +104,9 @@ def _read_tables(input_pdf: Path, page_spec: str, flavor: str) -> list[camelot.c
                 flavor=flavor,
             )
         )
-    except Exception:
+    except Exception as exc:
+        # Surface extraction backend failures in diagnostics without aborting the other flavor.
+        print(f"camelot {flavor} failed for {input_pdf} pages={page_spec!r}: {exc}", file=sys.stderr)
         return []
 
 

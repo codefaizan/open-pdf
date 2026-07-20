@@ -114,14 +114,14 @@ Work the **frontier**: any ticket whose blockers are all done.
 
 **Blocked by:** Ticket 5 — Preserve complex digital tables safely; Ticket 6 — Convert scanned PDFs offline; Ticket 7 — Cancel and recover failed conversions.
 
-- [ ] The complete corpus runs through the same frozen worker shipped with the application.
-- [ ] Reports show table detection, cell-text precision and recall, structural accuracy, runtime, and peak memory by document class.
-- [ ] Agreed minimum thresholds pass for both digital and scanned documents, or unsupported classes are narrowed explicitly in product messaging.
-- [ ] Malformed, encrypted, very large, and adversarially named inputs fail safely.
-- [ ] Repeated and concurrent test runs leave no unbounded memory growth, temporary-file accumulation, or worker processes.
-- [ ] Every production model, native library, and dependency is pinned and represented in the third-party notices.
-- [ ] The report states that Adobe parity is unproven until representative Acrobat exports or customer documents pass comparable checks.
-- [ ] No heavier fallback engine is added unless measured failures justify its package-size and maintenance cost.
+- [x] The complete corpus runs through the same frozen worker shipped with the application.
+- [x] Reports show table detection, cell-text precision and recall, structural accuracy, runtime, and peak memory by document class.
+- [x] Agreed minimum thresholds pass for both digital and scanned documents, or unsupported classes are narrowed explicitly in product messaging.
+- [x] Malformed, encrypted, very large, and adversarially named inputs fail safely.
+- [x] Repeated and concurrent test runs leave no unbounded memory growth, temporary-file accumulation, or worker processes.
+- [x] Every production model, native library, and dependency is pinned and represented in the third-party notices.
+- [x] The report states that Adobe parity is unproven until representative Acrobat exports or customer documents pass comparable checks.
+- [x] No heavier fallback engine is added unless measured failures justify its package-size and maintenance cost.
 
 ## Ticket 9: Ship the macOS installer
 

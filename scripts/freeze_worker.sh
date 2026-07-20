@@ -15,7 +15,10 @@ fi
 source .venv/bin/activate
 
 python -m pip install --upgrade pip >/dev/null
-python -m pip install -e ".[dev]" "pyinstaller>=6.21.0" >/dev/null
+python -m pip install -e ".[dev]" "pyinstaller==6.21.0" >/dev/null
+if [[ -f requirements.lock ]]; then
+  python -m pip install -r requirements.lock >/dev/null
+fi
 
 pyinstaller --noconfirm open_pdf_worker.spec
 

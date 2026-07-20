@@ -7,6 +7,7 @@ open_pdf_worker/harness.py
 open_pdf_worker/ocr.py
 open_pdf_worker/page_detection.py
 open_pdf_worker/protocol.py
+open_pdf_worker/release_gate.py
 open_pdf_worker/version.py
 open_pdf_worker.egg-info/PKG-INFO
 open_pdf_worker.egg-info/SOURCES.txt
@@ -21,4 +22,6 @@ tests/test_digital_corpus.py
 tests/test_ocr.py
 tests/test_page_detection.py
 tests/test_protocol.py
+tests/test_release_gate.py
+tests/test_release_safety.py
 tests/test_scan_corpus.py

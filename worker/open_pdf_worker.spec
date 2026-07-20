@@ -16,16 +16,23 @@ hiddenimports = (
     collect_submodules("camelot")
     + collect_submodules("openpyxl")
     + collect_submodules("playa")
+    + collect_submodules("pypdfium2")
+    + collect_submodules("pytesseract")
     + [path.stem.split(".")[0] for path in site_packages.glob("*__mypyc*.so")]
 )
 
 camelot_datas, camelot_binaries, camelot_hidden = collect_all("camelot")
 playa_datas, playa_binaries, playa_hidden = collect_all("playa")
-hiddenimports += camelot_hidden + playa_hidden
-extra_datas = camelot_datas + playa_datas
+pypdfium_datas, pypdfium_binaries, pypdfium_hidden = collect_all("pypdfium2")
+hiddenimports += camelot_hidden + playa_hidden + pypdfium_hidden
+extra_datas = camelot_datas + playa_datas + pypdfium_datas
+
 tessdata_dir = Path(SPECPATH) / "open_pdf_worker" / "tessdata"
-extra_datas += [(str(path), "open_pdf_worker/tessdata") for path in tessdata_dir.glob("*.traineddata")]
-extra_binaries = camelot_binaries + playa_binaries + mypyc_binaries
+if not (tessdata_dir / "eng.traineddata").is_file():
+    raise SystemExit(f"Missing OCR model: {tessdata_dir / 'eng.traineddata'}")
+extra_datas += [(str(tessdata_dir / "eng.traineddata"), "open_pdf_worker/tessdata")]
+
+extra_binaries = camelot_binaries + playa_binaries + pypdfium_binaries + mypyc_binaries
 
 a = Analysis(
     ["open_pdf_worker/__main__.py"],

@@ -1,0 +1,99 @@
+# Build a portable Windows x64 ZIP (no certificate / App Installer).
+# Non-tech install: unzip → double-click open_pdf.exe
+# (SmartScreen may show "More info" → "Run anyway" once.)
+#
+# Manual only so idle pushes do not burn free GitHub Actions minutes.
+
+name: Windows portable ZIP
+
+on:
+  workflow_dispatch:
+    inputs:
+      smoke:
+        description: Run packaging smoke checks after build
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: windows-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Enable Flutter Windows desktop
+        run: flutter config --enable-windows-desktop
+
+      - name: Install Tesseract OCR
+        run: choco install tesseract --yes --no-progress
+
+      - name: Resolve Tesseract directory
+        shell: pwsh
+        run: |
+          $candidates = @(
+            "C:\Program Files\Tesseract-OCR",
+            "C:\Program Files (x86)\Tesseract-OCR"
+          )
+          $dir = $candidates | Where-Object { Test-Path (Join-Path $_ "tesseract.exe") } | Select-Object -First 1
+          if (-not $dir) {
+            $cmd = Get-Command tesseract.exe -ErrorAction Stop
+            $dir = Split-Path -Parent $cmd.Source
+          }
+          Write-Host "Using Tesseract at $dir"
+          "OPEN_PDF_TESSERACT_DIR=$dir" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Build portable payload
+        shell: pwsh
+        run: .\scripts\package_windows.ps1 -SkipSign -SkipPack
+
+      - name: Smoke package
+        if: ${{ inputs.smoke }}
+        shell: pwsh
+        run: .\scripts\smoke_windows_package.ps1 .\artifacts\windows\stage-x64
+
+      - name: Zip portable app
+        shell: pwsh
+        run: |
+          $stage = Join-Path $PWD "artifacts\windows\stage-x64"
+          $folder = Join-Path $PWD "artifacts\windows\Open-PDF-Windows-x64"
+          $zip = Join-Path $PWD "artifacts\windows\Open-PDF-Windows-x64.zip"
+          if (Test-Path $folder) { Remove-Item -Recurse -Force $folder }
+          if (Test-Path $zip) { Remove-Item -Force $zip }
+          New-Item -ItemType Directory -Force -Path $folder | Out-Null
+          Copy-Item -Recurse -Force (Join-Path $stage "*") $folder
+          # Drop MSIX-only staging files — not needed for portable run.
+          Remove-Item -Force (Join-Path $folder "AppxManifest.xml") -ErrorAction SilentlyContinue
+          Remove-Item -Recurse -Force (Join-Path $folder "Assets") -ErrorAction SilentlyContinue
+          @"
+          Open PDF (Windows)
+          ------------------
+          1. Unzip this folder anywhere.
+          2. Double-click open_pdf.exe to start.
+          3. If Windows shows a blue/yellow warning, click More info, then Run anyway.
+          "@ | Set-Content -Path (Join-Path $folder "How to open.txt") -Encoding utf8
+          Compress-Archive -Path $folder -DestinationPath $zip -Force
+          Write-Host "Created $zip"
+
+      - name: Upload ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: Open-PDF-Windows-x64
+          path: artifacts/windows/Open-PDF-Windows-x64.zip
+          if-no-files-found: error
+          retention-days: 14

@@ -1,4 +1,5 @@
 # Build Open-PDF-x64.msix on a free GitHub-hosted Windows runner.
+# Use this for Microsoft Store submission (Partner Center product OpenPDF).
 # Manual only so idle pushes do not burn the free minute allowance.
 #
 # Free tier notes (GitHub-hosted):

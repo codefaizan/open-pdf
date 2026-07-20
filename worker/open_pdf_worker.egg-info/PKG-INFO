@@ -5,6 +5,8 @@ Summary: Local PDF-to-Excel conversion worker for Open PDF
 Requires-Python: >=3.10
 Requires-Dist: camelot-py==2.0.0
 Requires-Dist: openpyxl==3.1.5
+Requires-Dist: pytesseract==0.3.13
+Requires-Dist: reportlab==4.2.5
 Provides-Extra: dev
 Requires-Dist: pytest==8.3.4; extra == "dev"
 Requires-Dist: reportlab==4.2.5; extra == "dev"

@@ -1,0 +1,19 @@
+{
+  "document": "rotated_scan.pdf",
+  "document_class": "rotated_scan",
+  "pages": "1",
+  "minimum_worksheets": 1,
+  "expect_review_sheet": true,
+  "minimum_cell_recall": 0.5,
+  "required_values": [
+    "00987",
+    "50",
+    "35"
+  ],
+  "header_values": [
+    "Item ID",
+    "Batch",
+    "Count"
+  ],
+  "rows": []
+}

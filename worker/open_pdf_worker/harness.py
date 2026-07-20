@@ -22,6 +22,7 @@ SAMPLE_PDF = CORPUS_DIR / "ruled_table.pdf"
 EXPECTED_PATH = CORPUS_DIR / "ruled_table.expected.json"
 MANIFEST_PATH = CORPUS_DIR / "manifest.json"
 CORPUS_GENERATOR = CORPUS_DIR / "generate_digital_corpus.py"
+SCAN_CORPUS_GENERATOR = CORPUS_DIR / "generate_scan_corpus.py"
 
 
 def ensure_sample_pdf() -> Path:
@@ -30,6 +31,11 @@ def ensure_sample_pdf() -> Path:
 
 
 def ensure_corpus() -> None:
+    ensure_digital_corpus()
+    ensure_scan_corpus()
+
+
+def ensure_digital_corpus() -> None:
     manifest = load_digital_corpus_manifest()
     missing_pdfs = [
         entry
@@ -46,9 +52,36 @@ def ensure_corpus() -> None:
         )
 
 
+def ensure_scan_corpus() -> None:
+    manifest = load_scan_corpus_manifest()
+    missing_pdfs = [
+        entry
+        for entry in manifest
+        if not (CORPUS_DIR / entry["pdf"]).exists()
+    ]
+    missing_expected = [
+        entry
+        for entry in manifest
+        if not (CORPUS_DIR / entry["expected"]).exists()
+    ]
+    if missing_pdfs or missing_expected:
+        if not SCAN_CORPUS_GENERATOR.exists():
+            raise FileNotFoundError(f"Missing scan corpus generator: {SCAN_CORPUS_GENERATOR}")
+        subprocess.run(
+            [sys.executable, str(SCAN_CORPUS_GENERATOR)],
+            check=True,
+            cwd=REPO_ROOT,
+        )
+
+
 def load_digital_corpus_manifest() -> list[dict]:
     manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     return manifest["digital_classes"]
+
+
+def load_scan_corpus_manifest() -> list[dict]:
+    manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+    return manifest["scan_classes"]
 
 
 def load_expected_spec(path: Path) -> dict:
@@ -130,8 +163,18 @@ def workbook_fingerprint(workbook_path: Path) -> list[tuple[str, list[tuple[int,
     return fingerprint
 
 
+def _normalize_cell(value: object) -> str:
+    return str(value or "").replace("\n", " ").strip()
+
+
 def flatten_values(cells: list[list[str]]) -> set[str]:
-    return {value for row in cells for value in row if value}
+    normalized: set[str] = set()
+    for row in cells:
+        for value in row:
+            text = _normalize_cell(value)
+            if text:
+                normalized.add(text)
+    return normalized
 
 
 def compare_expected_workbook(workbook_path: Path, expected: dict) -> dict:
@@ -144,11 +187,11 @@ def compare_expected_workbook(workbook_path: Path, expected: dict) -> dict:
     found_required = required & flat
     found_headers = headers & flat
 
-    expected_rows = {tuple(row) for row in expected.get("rows", [])}
+    expected_rows = {tuple(_normalize_cell(value) for value in row) for row in expected.get("rows", [])}
     actual_rows: set[tuple[str, ...]] = set()
     if width:
         actual_rows = {
-            tuple(row[:width])
+            tuple(_normalize_cell(value) for value in row[:width])
             for row in cells
             if len(row) >= width and any(row[:width])
         }
@@ -315,6 +358,46 @@ def benchmark_digital_corpus(tmp_dir: Path) -> dict:
                 "exit_code": exit_code,
                 "progress_events": sum(1 for event in events if event["type"] == "progress"),
                 "completed": events[-1]["type"] == "complete" if events else False,
+            }
+        )
+        by_class[entry["id"]] = metrics
+
+    return {"by_class": by_class}
+
+
+def benchmark_scan_corpus(tmp_dir: Path) -> dict:
+    ensure_scan_corpus()
+    manifest = load_scan_corpus_manifest()
+    by_class: dict[str, dict] = {}
+
+    for entry in manifest:
+        pdf_path = CORPUS_DIR / entry["pdf"]
+        expected_path = CORPUS_DIR / entry["expected"]
+        expected = load_expected_spec(expected_path)
+        output = tmp_dir / f"{entry['id']}.xlsx"
+        events, runtime_seconds, peak_memory, exit_code = run_conversion(
+            pdf_path,
+            output,
+            pages=entry.get("pages", "1"),
+            request_id=f"scan-benchmark-{entry['id']}",
+        )
+        metrics = compare_expected_workbook(output, expected)
+        extraction_methods = []
+        if events and events[-1]["type"] == "complete":
+            extraction_methods = [
+                worksheet.get("extraction_method", "")
+                for worksheet in events[-1].get("worksheets", [])
+            ]
+        metrics.update(
+            {
+                "document_class": entry["id"],
+                "document": str(pdf_path),
+                "runtime_seconds": round(runtime_seconds, 3),
+                "peak_memory_bytes": peak_memory,
+                "exit_code": exit_code,
+                "progress_events": sum(1 for event in events if event["type"] == "progress"),
+                "completed": events[-1]["type"] == "complete" if events else False,
+                "extraction_methods": extraction_methods,
             }
         )
         by_class[entry["id"]] = metrics

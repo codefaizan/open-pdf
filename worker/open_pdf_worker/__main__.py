@@ -153,7 +153,11 @@ class WorkerSession:
                     "request_id": request.request_id,
                     "output_xlsx": str(request.output_xlsx),
                     "worksheets": [
-                        {"name": sheet.name, "source_pages": sheet.source_pages}
+                        {
+                            "name": sheet.name,
+                            "source_pages": sheet.source_pages,
+                            "extraction_method": sheet.extraction_method,
+                        }
                         for sheet in result.worksheets
                     ],
                 }

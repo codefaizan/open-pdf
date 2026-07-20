@@ -1,0 +1,48 @@
+{
+  "document": "noisy_scan.pdf",
+  "document_class": "noisy_scan",
+  "pages": "1",
+  "minimum_worksheets": 1,
+  "expect_review_sheet": true,
+  "required_values": [
+    "00123",
+    "00456",
+    "00789",
+    "ABC-00456",
+    "XYZ-00789",
+    "DEF-00123",
+    "29.99",
+    "15.50",
+    "Rush order"
+  ],
+  "header_values": [
+    "Item ID",
+    "Product Code",
+    "Quantity",
+    "Unit Price",
+    "Notes"
+  ],
+  "rows": [
+    [
+      "00123",
+      "ABC-00456",
+      "10",
+      "29.99",
+      "Rush order"
+    ],
+    [
+      "00456",
+      "XYZ-00789",
+      "5",
+      "15.50",
+      "Standard"
+    ],
+    [
+      "00789",
+      "DEF-00123",
+      "25",
+      "8.00",
+      "Bulk"
+    ]
+  ]
+}

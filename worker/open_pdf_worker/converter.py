@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
@@ -9,12 +10,16 @@ from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
+from open_pdf_worker.ocr import build_searchable_page_pdf
+from open_pdf_worker.page_detection import classify_pages, pages_to_spec
+
 ProgressCallback = Callable[[str, int, str], None]
 
 CONFIDENCE_THRESHOLD = 0.85
 ACCURACY_THRESHOLD = 95.0
 MIN_CONFIDENCE_WHEN_ACCURATE = 0.75
 REVIEW_SHEET_NAME = "Review"
+OCR_REVIEW_THRESHOLD = 0.9418
 
 
 @dataclass(frozen=True)
@@ -41,6 +46,7 @@ class ExtractedTable:
     accuracy: float
     rows: list[list[str]]
     merges: list[tuple[int, int, int, int]]
+    ocr_confidence: float | None = None
 
 
 def _safe_sheet_name(base: str, used: set[str]) -> str:
@@ -75,7 +81,14 @@ def _table_order(table: camelot.core.Table) -> int:
     return int(table.parsing_report.get("order", 1))
 
 
-def _is_low_confidence(confidence: float, accuracy: float) -> bool:
+def _is_low_confidence(
+    confidence: float,
+    accuracy: float,
+    *,
+    ocr_confidence: float | None = None,
+) -> bool:
+    if ocr_confidence is not None and ocr_confidence < OCR_REVIEW_THRESHOLD:
+        return True
     if accuracy >= ACCURACY_THRESHOLD and confidence >= MIN_CONFIDENCE_WHEN_ACCURATE:
         return False
     return confidence < CONFIDENCE_THRESHOLD or accuracy < ACCURACY_THRESHOLD
@@ -184,10 +197,69 @@ def _select_tables(lattice_tables: list[camelot.core.Table], stream_tables: list
     return selected
 
 
-def _extract_tables(input_pdf: Path, page_spec: str) -> list[ExtractedTable]:
+def _select_ocr_tables(
+    lattice_tables: list[camelot.core.Table],
+    stream_tables: list[camelot.core.Table],
+    *,
+    source_page: int,
+    ocr_confidence: float,
+) -> list[ExtractedTable]:
+    selected = _select_tables(lattice_tables, stream_tables)
+    adjusted: list[ExtractedTable] = []
+    for table in selected:
+        confidence = min(table.confidence, ocr_confidence)
+        adjusted.append(
+            ExtractedTable(
+                page=source_page,
+                order=table.order,
+                flavor=f"ocr-{table.flavor}",
+                confidence=confidence,
+                accuracy=table.accuracy,
+                rows=table.rows,
+                merges=table.merges,
+                ocr_confidence=ocr_confidence,
+            )
+        )
+    return adjusted
+
+
+def _extract_digital_tables(input_pdf: Path, page_spec: str) -> list[ExtractedTable]:
     lattice_tables = _read_tables(input_pdf, page_spec, "lattice")
     stream_tables = _read_tables(input_pdf, page_spec, "stream")
     return _select_tables(lattice_tables, stream_tables)
+
+
+def _extract_scan_tables(input_pdf: Path, scan_pages: list[int]) -> list[ExtractedTable]:
+    extracted: list[ExtractedTable] = []
+    for page_number in scan_pages:
+        with tempfile.TemporaryDirectory(prefix="open-pdf-ocr-") as temp_dir:
+            searchable_pdf = Path(temp_dir) / f"page-{page_number}.pdf"
+            ocr_result = build_searchable_page_pdf(input_pdf, page_number, searchable_pdf)
+            lattice_tables = _read_tables(searchable_pdf, "1", "lattice")
+            stream_tables = _read_tables(searchable_pdf, "1", "stream")
+            extracted.extend(
+                _select_ocr_tables(
+                    lattice_tables,
+                    stream_tables,
+                    source_page=page_number,
+                    ocr_confidence=ocr_result.average_confidence,
+                )
+            )
+    extracted.sort(key=lambda table: (table.page, table.order))
+    return extracted
+
+
+def _extract_tables(input_pdf: Path, page_spec: str) -> list[ExtractedTable]:
+    digital_pages, scan_pages = classify_pages(input_pdf, page_spec)
+    extracted: list[ExtractedTable] = []
+
+    if digital_pages:
+        extracted.extend(_extract_digital_tables(input_pdf, pages_to_spec(digital_pages)))
+    if scan_pages:
+        extracted.extend(_extract_scan_tables(input_pdf, scan_pages))
+
+    extracted.sort(key=lambda table: (table.page, table.order))
+    return extracted
 
 
 def _write_text_cell(sheet: Worksheet, row: int, column: int, value: object) -> None:
@@ -279,8 +351,14 @@ def convert_pdf_to_excel(
             )
         )
 
-        if _is_low_confidence(table.confidence, table.accuracy):
+        if _is_low_confidence(
+            table.confidence,
+            table.accuracy,
+            ocr_confidence=table.ocr_confidence,
+        ):
             note = "Review extracted values against the source PDF."
+            if table.flavor.startswith("ocr"):
+                note = "Review OCR extraction against the source scan."
             warnings.append(f"{sheet_name} on page {table.page} needs review.")
             review_entries.append(
                 (sheet_name, table.page, table.confidence, table.accuracy, note)

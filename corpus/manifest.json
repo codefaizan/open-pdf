@@ -36,5 +36,37 @@
       "expected": "rotated_table.expected.json",
       "pages": "1"
     }
+  ],
+  "scan_classes": [
+    {
+      "id": "clean_scan",
+      "pdf": "clean_scan.pdf",
+      "expected": "clean_scan.expected.json",
+      "pages": "1"
+    },
+    {
+      "id": "noisy_scan",
+      "pdf": "noisy_scan.pdf",
+      "expected": "noisy_scan.expected.json",
+      "pages": "1"
+    },
+    {
+      "id": "ruled_scan",
+      "pdf": "ruled_scan.pdf",
+      "expected": "ruled_scan.expected.json",
+      "pages": "1"
+    },
+    {
+      "id": "borderless_scan",
+      "pdf": "borderless_scan.pdf",
+      "expected": "borderless_scan.expected.json",
+      "pages": "1"
+    },
+    {
+      "id": "rotated_scan",
+      "pdf": "rotated_scan.pdf",
+      "expected": "rotated_scan.expected.json",
+      "pages": "1"
+    }
   ]
 }

@@ -83,14 +83,14 @@ Work the **frontier**: any ticket whose blockers are all done.
 
 **Blocked by:** Ticket 4 — Convert the open PDF with one action.
 
-- [ ] The benchmark corpus contains verified clean-scan, noisy-scan, rotated, ruled, and borderless examples.
-- [ ] Image-only pages are recognized automatically without requiring a separate user mode.
-- [ ] Digital pages do not enter the slower OCR path when their embedded text is reliable.
-- [ ] OCR models are available on first launch without a download or network connection.
-- [ ] Extracted scan results produce editable worksheets with source-page metadata and confidence warnings.
-- [ ] Rotated and noisy pages either meet the defined quality threshold or are explicitly flagged for review.
-- [ ] Accuracy, runtime, and peak memory are reported separately for each scanned document class.
-- [ ] Offline behavior is verified with network access disabled.
+- [x] The benchmark corpus contains verified clean-scan, noisy-scan, rotated, ruled, and borderless examples.
+- [x] Image-only pages are recognized automatically without requiring a separate user mode.
+- [x] Digital pages do not enter the slower OCR path when their embedded text is reliable.
+- [x] OCR models are available on first launch without a download or network connection.
+- [x] Extracted scan results produce editable worksheets with source-page metadata and confidence warnings.
+- [x] Rotated and noisy pages either meet the defined quality threshold or are explicitly flagged for review.
+- [x] Accuracy, runtime, and peak memory are reported separately for each scanned document class.
+- [x] Offline behavior is verified with network access disabled.
 
 ## Ticket 7: Cancel and recover failed conversions
 

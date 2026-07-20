@@ -4,6 +4,8 @@ open_pdf_worker/__main__.py
 open_pdf_worker/converter.py
 open_pdf_worker/errors.py
 open_pdf_worker/harness.py
+open_pdf_worker/ocr.py
+open_pdf_worker/page_detection.py
 open_pdf_worker/protocol.py
 open_pdf_worker/version.py
 open_pdf_worker.egg-info/PKG-INFO
@@ -12,6 +14,11 @@ open_pdf_worker.egg-info/dependency_links.txt
 open_pdf_worker.egg-info/entry_points.txt
 open_pdf_worker.egg-info/requires.txt
 open_pdf_worker.egg-info/top_level.txt
+open_pdf_worker/tessdata/eng.traineddata
 tests/test_benchmark.py
 tests/test_conversion.py
+tests/test_digital_corpus.py
+tests/test_ocr.py
+tests/test_page_detection.py
 tests/test_protocol.py
+tests/test_scan_corpus.py

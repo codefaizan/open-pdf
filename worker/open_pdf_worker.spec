@@ -23,6 +23,8 @@ camelot_datas, camelot_binaries, camelot_hidden = collect_all("camelot")
 playa_datas, playa_binaries, playa_hidden = collect_all("playa")
 hiddenimports += camelot_hidden + playa_hidden
 extra_datas = camelot_datas + playa_datas
+tessdata_dir = Path(SPECPATH) / "open_pdf_worker" / "tessdata"
+extra_datas += [(str(path), "open_pdf_worker/tessdata") for path in tessdata_dir.glob("*.traineddata")]
 extra_binaries = camelot_binaries + playa_binaries + mypyc_binaries
 
 a = Analysis(

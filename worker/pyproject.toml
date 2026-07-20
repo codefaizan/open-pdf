@@ -10,6 +10,8 @@ requires-python = ">=3.10"
 dependencies = [
     "camelot-py==2.0.0",
     "openpyxl==3.1.5",
+    "pytesseract==0.3.13",
+    "reportlab==4.2.5",
 ]
 
 [project.optional-dependencies]
@@ -24,6 +26,9 @@ open-pdf-worker = "open_pdf_worker.__main__:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["open_pdf_worker*"]
+
+[tool.setuptools.package-data]
+open_pdf_worker = ["tessdata/*.traineddata"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
